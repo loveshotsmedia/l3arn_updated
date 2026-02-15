@@ -1,0 +1,55 @@
+{
+    "name": "tool_ai_help",
+    "version": "1.0.0",
+    "description": "AI-powered text assistance (suggestions, rewriting, tone variants)",
+    "input": {
+        "type": "object",
+        "properties": {
+            "field_type": {
+                "type": "string",
+                "description": "Context: learning_goal, bio, etc."
+            },
+            "user_text": {
+                "type": "string",
+                "minLength": 1
+            },
+            "constraints": {
+                "type": "object"
+            },
+            "student_context": {
+                "type": "object"
+            }
+        },
+        "required": [
+            "field_type",
+            "user_text"
+        ]
+    },
+    "output": {
+        "type": "object",
+        "properties": {
+            "suggestions": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "rewritten": {
+                "type": "string"
+            },
+            "tone_variants": {
+                "type": "object"
+            },
+            "model_provider": {
+                "type": "string"
+            },
+            "model_version": {
+                "type": "string"
+            }
+        }
+    },
+    "audit": {
+        "action": "ai_output",
+        "resource_type": "ai_outputs"
+    }
+}

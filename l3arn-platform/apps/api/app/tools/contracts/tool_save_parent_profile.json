@@ -1,0 +1,64 @@
+{
+    "name": "tool_save_parent_profile",
+    "version": "1.0.0",
+    "description": "Create or update a parent profile (upsert)",
+    "input": {
+        "type": "object",
+        "properties": {
+            "user_id": {
+                "type": "string",
+                "format": "uuid"
+            },
+            "tenant_id": {
+                "type": "string",
+                "format": "uuid"
+            },
+            "first_name": {
+                "type": "string"
+            },
+            "last_name": {
+                "type": "string"
+            },
+            "phone": {
+                "type": "string"
+            },
+            "email": {
+                "type": "string"
+            },
+            "city": {
+                "type": "string"
+            },
+            "state": {
+                "type": "string"
+            },
+            "country": {
+                "type": "string"
+            },
+            "timezone": {
+                "type": "string"
+            }
+        },
+        "required": [
+            "user_id",
+            "tenant_id"
+        ]
+    },
+    "output": {
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string"
+            },
+            "first_name": {
+                "type": "string"
+            },
+            "last_name": {
+                "type": "string"
+            }
+        }
+    },
+    "audit": {
+        "action": "write",
+        "resource_type": "parent_profiles"
+    }
+}

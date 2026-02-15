@@ -1,0 +1,25 @@
+{
+    "name": "l3arn-platform",
+    "version": "0.1.0",
+    "private": true,
+    "description": "L3ARN — Parent-led, student-driven learning platform monorepo",
+    "scripts": {
+        "dev:web": "pnpm --filter @l3arn/web dev",
+        "dev:api": "cd apps/api && uvicorn app.main:app --reload --port 8000",
+        "build:web": "pnpm --filter @l3arn/web build",
+        "lint:ts": "pnpm -r --filter './packages/**' --filter '@l3arn/web' run lint",
+        "lint:py": "cd apps/api && ruff check .",
+        "typecheck:ts": "pnpm -r --filter './packages/**' --filter '@l3arn/web' run typecheck",
+        "typecheck:py": "cd apps/api && mypy app",
+        "test:ts": "pnpm -r --filter './packages/**' --filter '@l3arn/web' run test",
+        "test:py": "cd apps/api && pytest",
+        "test:contracts": "pytest tests/contracts/",
+        "docker:up": "docker compose up -d",
+        "docker:down": "docker compose down",
+        "docker:logs": "docker compose logs -f"
+    },
+    "engines": {
+        "node": ">=20.0.0",
+        "pnpm": ">=9.0.0"
+    }
+}

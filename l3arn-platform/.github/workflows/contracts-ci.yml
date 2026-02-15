@@ -1,0 +1,31 @@
+name: Contract Parity Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/shared-contracts/**"
+      - "apps/api/app/models/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/shared-contracts/**"
+      - "apps/api/app/models/**"
+
+jobs:
+  contracts:
+    name: TS ↔ Python DTO Parity
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - name: Run contract parity tests
+        run: pytest tests/contracts/ -v

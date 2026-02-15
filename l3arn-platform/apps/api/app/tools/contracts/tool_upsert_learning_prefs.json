@@ -1,0 +1,68 @@
+{
+    "name": "tool_upsert_learning_prefs",
+    "version": "1.0.0",
+    "description": "Get or upsert learning preferences for a student",
+    "input": {
+        "type": "object",
+        "properties": {
+            "student_id": {
+                "type": "string",
+                "format": "uuid"
+            },
+            "tenant_id": {
+                "type": "string",
+                "format": "uuid"
+            },
+            "operation": {
+                "type": "string",
+                "enum": [
+                    "get",
+                    "upsert"
+                ]
+            },
+            "learning_style": {
+                "type": "string"
+            },
+            "interests": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "strengths": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "challenges": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "goals": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "weekly_target_minutes": {
+                "type": "integer"
+            }
+        },
+        "required": [
+            "student_id",
+            "tenant_id",
+            "operation"
+        ]
+    },
+    "output": {
+        "type": "object",
+        "nullable": true
+    },
+    "audit": {
+        "action": "read_write",
+        "resource_type": "child_learning_prefs"
+    }
+}

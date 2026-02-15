@@ -1,0 +1,59 @@
+{
+    "name": "tool_get_parent_profile",
+    "version": "1.0.0",
+    "description": "Fetch parent profile for the current user in the current tenant",
+    "input": {
+        "type": "object",
+        "properties": {
+            "user_id": {
+                "type": "string",
+                "format": "uuid"
+            },
+            "tenant_id": {
+                "type": "string",
+                "format": "uuid"
+            }
+        },
+        "required": [
+            "user_id",
+            "tenant_id"
+        ]
+    },
+    "output": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+            "id": {
+                "type": "string"
+            },
+            "first_name": {
+                "type": "string"
+            },
+            "last_name": {
+                "type": "string"
+            },
+            "phone": {
+                "type": "string"
+            },
+            "email": {
+                "type": "string"
+            },
+            "city": {
+                "type": "string"
+            },
+            "state": {
+                "type": "string"
+            },
+            "country": {
+                "type": "string"
+            },
+            "timezone": {
+                "type": "string"
+            }
+        }
+    },
+    "audit": {
+        "action": "read",
+        "resource_type": "parent_profiles"
+    }
+}

@@ -1,0 +1,41 @@
+name: Python CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "tests/api/**"
+      - "scripts/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "tests/api/**"
+      - "scripts/**"
+
+jobs:
+  python-ci:
+    name: Lint + Typecheck + Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r apps/api/requirements.txt
+
+      - name: Lint (ruff)
+        run: ruff check apps/api/
+
+      - name: Typecheck (mypy)
+        run: mypy apps/api/app/ --ignore-missing-imports
+
+      - name: Test (pytest)
+        run: pytest tests/api/ -v

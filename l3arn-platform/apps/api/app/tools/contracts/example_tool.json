@@ -1,0 +1,44 @@
+{
+    "name": "example_tool",
+    "version": "1.0.0",
+    "description": "A sample tool that logs an action and returns a result",
+    "input": {
+        "type": "object",
+        "required": [
+            "message"
+        ],
+        "properties": {
+            "message": {
+                "type": "string",
+                "description": "The message to process"
+            }
+        }
+    },
+    "output": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean"
+            },
+            "tool": {
+                "type": "string"
+            },
+            "result": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    },
+                    "echo": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    },
+    "audit": {
+        "log_input": true,
+        "log_output": true,
+        "requires_tenant": true
+    }
+}

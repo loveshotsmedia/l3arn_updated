@@ -1,0 +1,59 @@
+{
+    "name": "tool_upsert_schedule_prefs",
+    "version": "1.0.0",
+    "description": "Get or upsert schedule preferences for a student",
+    "input": {
+        "type": "object",
+        "properties": {
+            "student_id": {
+                "type": "string",
+                "format": "uuid"
+            },
+            "tenant_id": {
+                "type": "string",
+                "format": "uuid"
+            },
+            "operation": {
+                "type": "string",
+                "enum": [
+                    "get",
+                    "upsert"
+                ]
+            },
+            "preferred_days": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "preferred_times": {
+                "type": "object"
+            },
+            "session_duration_minutes": {
+                "type": "integer"
+            },
+            "breaks_between": {
+                "type": "integer"
+            },
+            "blackout_dates": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            }
+        },
+        "required": [
+            "student_id",
+            "tenant_id",
+            "operation"
+        ]
+    },
+    "output": {
+        "type": "object",
+        "nullable": true
+    },
+    "audit": {
+        "action": "read_write",
+        "resource_type": "child_schedule_prefs"
+    }
+}

@@ -1,0 +1,48 @@
+{
+    "name": "tool_get_students",
+    "version": "1.0.0",
+    "description": "List students for the current parent in the current tenant",
+    "input": {
+        "type": "object",
+        "properties": {
+            "tenant_id": {
+                "type": "string",
+                "format": "uuid"
+            },
+            "parent_user_id": {
+                "type": "string",
+                "format": "uuid"
+            }
+        },
+        "required": [
+            "tenant_id"
+        ]
+    },
+    "output": {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "grade_level": {
+                    "type": "string"
+                },
+                "active": {
+                    "type": "boolean"
+                }
+            }
+        }
+    },
+    "audit": {
+        "action": "read",
+        "resource_type": "students"
+    }
+}

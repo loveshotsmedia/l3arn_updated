@@ -1,0 +1,71 @@
+{
+    "name": "tool_upsert_student",
+    "version": "1.0.0",
+    "description": "Create or update a student record in the current tenant",
+    "input": {
+        "type": "object",
+        "properties": {
+            "tenant_id": {
+                "type": "string",
+                "format": "uuid"
+            },
+            "parent_user_id": {
+                "type": "string",
+                "format": "uuid"
+            },
+            "student_id": {
+                "type": "string",
+                "format": "uuid"
+            },
+            "operation": {
+                "type": "string",
+                "enum": [
+                    "create",
+                    "update"
+                ]
+            },
+            "first_name": {
+                "type": "string"
+            },
+            "last_name": {
+                "type": "string"
+            },
+            "nickname": {
+                "type": "string"
+            },
+            "date_of_birth": {
+                "type": "string",
+                "format": "date"
+            },
+            "grade_level": {
+                "type": "string"
+            },
+            "avatar_url": {
+                "type": "string"
+            }
+        },
+        "required": [
+            "tenant_id",
+            "parent_user_id",
+            "operation"
+        ]
+    },
+    "output": {
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string"
+            },
+            "first_name": {
+                "type": "string"
+            },
+            "active": {
+                "type": "boolean"
+            }
+        }
+    },
+    "audit": {
+        "action": "write",
+        "resource_type": "students"
+    }
+}
