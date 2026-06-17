@@ -5,24 +5,19 @@
  * provided by the infrastructure layer (Phase 2). During Phase 0/1, the
  * NoopKillSwitch is used, which logs the event without taking action.
  *
- * Kill-switch rules (ADR-047 — provisional):
- *   - Only founders may invoke a kill switch
- *   - Kill switches must be reversible and logged
- *   - A kill switch invocation triggers at minimum an S1 review
- *   - No automated system may invoke a kill switch without founder approval
+ * Kill-switch rules (ADR-047 — amended June 2026):
+ *   - Automated safety containment IS allowed for predefined S3/S4 events.
+ *     See safety-containment.interface.ts for the approved containment contract.
+ *   - Manual (founder-only) kill switches remain for platform-wide actions.
+ *   - Kill switches must be reversible and logged.
+ *   - A kill switch invocation triggers at minimum an S1 review.
+ *   - Restoration from any containment action requires founder/admin review.
  *
  * This interface allows the safety middleware to call trigger() without
  * depending on any specific infrastructure implementation. The DI pattern
  * here is intentional — the safety package must remain pure and infrastructure-free.
  *
- * OPEN QUESTION: ADR-047 states "no automated system may invoke a kill switch
- * without founder approval." The S4 severity rule in determineSeverity() would
- * trigger the NoopKillSwitch automatically. This is a design tension: S4 events
- * (e.g., sexual content involving minors) arguably cannot wait for human approval.
- * Resolution needed before Phase 2 implementation. Filed for founder review.
- * — Agent 7, Phase 0
- *
- * Grounded in: ADR-047 (kill-switch authority — provisional),
+ * Grounded in: ADR-047 (kill-switch authority — amended June 2026),
  * CONTEXT.md §10 (Kill Switch Authority).
  */
 
