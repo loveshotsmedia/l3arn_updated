@@ -11,14 +11,6 @@
  *   - No raw content from the violating AI output is stored in the event
  *   - matchedPatterns contains rule names and sanitized excerpts only
  *
- * OPEN QUESTION: The ModerationEventSchema in moderation.schema.ts is designed
- * around chat message moderation (has chatMessageId, roomId, messageType).
- * AI output violations (companion-response, mission-output) do not have a
- * chatMessageId or roomId in the same sense. We populate these fields with
- * sentinel values ("AI_OUTPUT") to satisfy the schema. In Phase 1, consider
- * a separate AIOutputModerationEventSchema or a discriminated union in
- * ModerationEventSchema. Filed as open question — Agent 7, Phase 0.
- *
  * Grounded in: ADR-054, ADR-028, ADR-008, moderation.schema.ts,
  * MASTER_HANDOFF §9 (de-identification rules).
  */
@@ -26,6 +18,11 @@
 import { type ModerationEvent } from "@l3arn/shared-types";
 import type { BoundaryViolation } from "../classifiers/companion-boundary.checker";
 
+// Internal trigger sources in the safety pipeline.
+// Maps to ModerationTriggerSchema values:
+//   "companion-response" → "ai-output"
+//   "mission-output"     → "ai-output"
+//   "user-input"         → "user-input"
 export type ModerationTriggerSource =
   | "companion-response"
   | "mission-output"
@@ -37,16 +34,18 @@ export type ModerationTriggerSource =
  * Callers creating events for multiple violations should call this once per
  * violation, then persist all events in a single batch to the DB.
  *
- * @param violation       - The boundary violation that triggered this event
- * @param childProfileId  - UUID of the child's profile (never real name/PII)
- * @param sessionId       - UUID of the active session, if any (optional)
- * @param triggeredBy     - Source of the violation (companion, mission, or user input)
+ * @param violation           - The boundary violation that triggered this event
+ * @param childProfileId      - UUID of the child's profile (never real name/PII)
+ * @param sessionId           - UUID of the active session, if any (optional)
+ * @param triggeredBy         - Source of the violation (companion, mission, or user input)
+ * @param aiOutputEnvelopeId  - UUID of the AI output envelope, if applicable (optional)
  */
 export function createModerationEvent(
   violation: BoundaryViolation,
   childProfileId: string,
   sessionId: string | undefined,
   triggeredBy: ModerationTriggerSource,
+  aiOutputEnvelopeId?: string,
 ): ModerationEvent {
   // Map severity from our internal safety model to the moderation schema outcome.
   // S3/S4 → blocked (hard stop); S1/S2 → flagged-for-review; S0 → approved (informational)
@@ -57,21 +56,24 @@ export function createModerationEvent(
       ? "flagged-for-review"
       : "approved"; // S0: informational only
 
+  // Map internal trigger source to the ModerationTriggerSchema values.
+  const triggerSource: ModerationEvent["triggerSource"] =
+    triggeredBy === "user-input" ? "user-input" : "ai-output";
+
   const now = new Date().toISOString();
 
   // Build the ModerationEvent matching the ModerationEventSchema shape.
-  // Note the sentinel values for fields that don't apply to AI output:
-  // - chatMessageId: absent (blocked before storage)
-  // - roomId: "AI_OUTPUT:<triggeredBy>" as a context marker
-  // - messageType: "system-message" (closest semantic fit for AI-generated content)
-  //
-  // OPEN QUESTION: Schema gap — see module-level comment. — Agent 7, Phase 0
+  // - chatMessageId: absent — this event is not triggered by a chat message
+  // - roomId: absent — AI output events are not room-scoped
+  // - messageType: absent — AI output events don't have a chat message type
   const event: ModerationEvent = {
     id: generateEventId(),
-    chatMessageId: undefined,  // not applicable — AI output, not a chat message
+    triggerSource,
+    // chatMessageId: absent — this event is not triggered by a chat message
+    // roomId: absent — AI output events are not room-scoped
+    // messageType: absent — AI output events don't have a chat message type
+    ...(aiOutputEnvelopeId ? { aiOutputEnvelopeId } : {}),
     senderChildProfileId: childProfileId,
-    roomId: `AI_OUTPUT:${triggeredBy}`,  // sentinel; not a real room ID
-    messageType: "system-message",        // closest semantic fit
     outcome,
     checksRun: [
       {
@@ -102,11 +104,6 @@ export function createModerationEvent(
  * Sanitize excerpt for log storage. Removes anything that looks like PII patterns.
  * Excerpts are already truncated upstream (companion-boundary.checker.ts).
  * This adds a second pass to strip email-like, phone-like, and name-like patterns.
- *
- * OPEN QUESTION: Is this double-sanitization sufficient for COPPA/FERPA compliance,
- * or should excerpts be excluded from ModerationEvent entirely and stored only in
- * a separate audit log with restricted access? Prefer conservative approach in Phase 1.
- * — Agent 7, Phase 0
  */
 function sanitizeExcerptForLog(excerpt: string): string {
   return excerpt
@@ -120,10 +117,7 @@ function sanitizeExcerptForLog(excerpt: string): string {
  * Generate a UUID-shaped event ID.
  * In production, callers may inject a UUID generator. For now, uses crypto.randomUUID
  * if available, otherwise falls back to a timestamp-based ID.
- *
- * OPEN QUESTION: Should this package depend on the `uuid` npm package or rely on
- * globalThis.crypto? Node 18+ has crypto.randomUUID(); target runtime should be
- * confirmed. — Agent 7, Phase 0
+ * Node 18+ has crypto.randomUUID(); Railway targets Node 18+.
  */
 function generateEventId(): string {
   if (typeof globalThis.crypto?.randomUUID === "function") {
