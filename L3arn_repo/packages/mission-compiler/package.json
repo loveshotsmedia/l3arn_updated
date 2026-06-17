@@ -1,6 +1,9 @@
 {
   "name": "@l3arn/mission-compiler",
   "version": "0.0.1",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "description": "L3ARN Mission Compiler — pure logic package for AI-driven mission generation",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
