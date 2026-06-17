@@ -35,6 +35,7 @@ import {
   MissionCompilerInput,
 } from "@l3arn/mission-compiler";
 import { validateBody } from "../middleware/validate";
+import { requireMissionAuth } from "../middleware/mission-auth.middleware";
 
 // ─── Request Body Schema ──────────────────────────────────────────────────────
 
@@ -95,6 +96,7 @@ export const missionRouter: ExpressRouter = Router();
  */
 missionRouter.post(
   "/compile",
+  requireMissionAuth,
   validateBody(MissionCompileRequestSchema),
   async (req: Request, res: Response): Promise<void> => {
     const body = req.body as MissionCompileRequest;
