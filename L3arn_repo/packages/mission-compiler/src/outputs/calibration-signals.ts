@@ -1,62 +1,19 @@
 /**
- * CalibrationSignal types and builder.
+ * Mission 001 calibration signal builder.
  *
- * Mission 001 is the "Learner Calibration" mission — it is specifically designed
- * to gather calibration signals that move the learner profile confidence from
- * 40-55% (post Sorting Ceremony) to 60-75% (post Mission 001).
+ * CalibrationSignal is defined canonically in @l3arn/shared-types.
+ * This module re-exports the type and provides the Mission 001 builder function.
  *
- * Calibration signals are NOT AI-generated output — they are defined by the
- * Mission Compiler based on which tasks and evidence capture points are included
- * in the mission. They describe what the system WILL capture, not what it HAS captured.
- *
- * Grounded in: architecture.md §9 (Learner Calibration Model),
- * CONTEXT.md §6 Decision 27 (First Mission),
- * evidence.schema.ts (EvidenceCaptureTypeSchema).
- *
- * OPEN QUESTION: CalibrationSignal is not yet defined in shared-types. If the
- * learner-model agent (Agent D or equivalent) defines a canonical
- * CalibrationSignalSchema in shared-types, this file should import from there
- * instead of defining its own type. — Agent 6, Phase 0
+ * Grounded in: architecture.md §9, evidence.schema.ts, calibration.schema.ts.
  */
 
-/**
- * A CalibrationSignal describes one dimension of learner behavior that
- * Mission 001 is designed to measure.
- *
- * TODO: When learner-profile schema is added to shared-types, align this
- * type with the canonical CalibrationEventSchema or CalibrationSignalSchema.
- */
-export interface CalibrationSignal {
-  /** Unique identifier for this signal type */
-  signalType:
-    | "reading-vs-listening"
-    | "cognitive-load"
-    | "ai-readiness"
-    | "persistence"
-    | "delivery-mode-preference"
-    | "hint-frequency";
+import { CalibrationSignal } from "@l3arn/shared-types";
 
-  /** Human-readable description of what is being calibrated */
-  description: string;
-
-  /** Which task or evidence capture point in the mission generates this signal */
-  sourceMissionTaskId: string | null;
-
-  /** Which evidence capture type generates this signal */
-  evidenceCaptureType:
-    | "decision-log"
-    | "sequence-completion"
-    | "ai-mistake-check"
-    | "explanation"
-    | "reflection"
-    | "structured-replay"
-    | null;
-}
+export type { CalibrationSignal };
 
 /**
- * Build the calibration signals for Mission 001.
- * These signals are fixed for Mission 001 — they represent the calibration
- * dimensions that every first-time learner provides data on.
+ * Build the fixed set of calibration signals for Mission 001.
+ * These signals describe what the system WILL measure — not what it has captured.
  *
  * @param hasAudioEnabled - whether the child has audio enabled in their permissions
  */
