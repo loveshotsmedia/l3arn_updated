@@ -29,3 +29,5 @@ export {
   WorldEventSchema,
   HOUSE_COLORS,
 } from './types';
+
+export * from "./state/worldStore";
