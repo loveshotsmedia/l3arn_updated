@@ -64,13 +64,14 @@ export interface SceneProps {
   /** Academy Display Name shown on the player avatar (ADR-007: never legal name). */
   displayName?: string;
   /** House selection drives avatar color tint. */
-  house?: 'Valkryn' | 'Lyrion' | 'Novari' | 'Cytrex';
+  house?: 'pre_sorting' | 'Valkryn' | 'Lyrion' | 'Novari' | 'Cytrex';
 }
 
 // ─── House Colors ─────────────────────────────────────────────────────────────
 // Placeholder palette — final art direction is pending (Agent L / Character IP branch).
 
 export const HOUSE_COLORS: Record<string, string> = {
+  pre_sorting: '#64748b', // slate-500 — neutral before Sorting Ceremony
   Valkryn: '#ef4444', // red / storm
   Lyrion: '#a855f7',  // purple / song
   Novari: '#22c55e',  // green / nature

@@ -30,7 +30,7 @@ interface WorldCanvasProps {
   scene: SceneKey;
   onEvent: (event: WorldEvent) => void;
   displayName?: string;
-  house?: 'Valkryn' | 'Lyrion' | 'Novari' | 'Cytrex';
+  house?: 'pre_sorting' | 'Valkryn' | 'Lyrion' | 'Novari' | 'Cytrex';
 }
 
 function SceneLoader({ scene, onEvent, displayName, house }: WorldCanvasProps) {

@@ -15,7 +15,7 @@ import { z } from "zod";
 // ─── Shared Enums ────────────────────────────────────────────────────────────
 // Imported by mission, world-event, and rewards schemas.
 
-export const HouseSchema = z.enum(["Valkryn", "Lyrion", "Novari", "Cytrex"]);
+export const HouseSchema = z.enum(["pre_sorting", "Valkryn", "Lyrion", "Novari", "Cytrex"]);
 export type House = z.infer<typeof HouseSchema>;
 
 // K-8 grade range (ADR-030: parent-owned child profiles for K-8 MVP)
