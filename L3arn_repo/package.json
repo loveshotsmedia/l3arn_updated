@@ -1,0 +1,15 @@
+{
+  "name": "l3arn-platform",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @l3arn/web dev",
+    "build": "pnpm --filter @l3arn/web build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

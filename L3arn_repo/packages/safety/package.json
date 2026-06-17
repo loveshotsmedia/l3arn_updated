@@ -1,0 +1,27 @@
+{
+  "name": "@l3arn/safety",
+  "version": "0.0.1",
+  "description": "Safety pipeline — pure logic, stateless classifiers and validators for L3ARN AI output",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@l3arn/shared-types": "workspace:*",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0"
+  }
+}

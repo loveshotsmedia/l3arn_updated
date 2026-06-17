@@ -1,0 +1,29 @@
+{
+  "name": "@l3arn/world-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'No tests yet'"
+  },
+  "dependencies": {
+    "@react-three/drei": "^9.109.2",
+    "@react-three/fiber": "^8.17.10",
+    "react": "^18.3.1",
+    "three": "^0.167.1",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/three": "^0.167.0",
+    "typescript": "^5.7.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "three": "^0.167.0"
+  }
+}
