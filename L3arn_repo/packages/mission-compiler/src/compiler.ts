@@ -24,10 +24,10 @@
  * at startup and emit a health check failure if absent, rather than failing at
  * compile time. — Agent 6, Phase 0
  *
- * OPEN QUESTION: The model version is hardcoded to "claude-3-5-sonnet-20241022".
- * If the project adopts a model alias (e.g. claude-sonnet-4-5 pointing to the
- * latest Sonnet), this should be moved to a config constant and documented in
- * an ADR. — Agent 6, Phase 0
+ * RESOLVED: Model version is now read from the ANTHROPIC_MODEL env var via
+ * resolveModelVersion(). In production (NODE_ENV=production) the env var is
+ * required and the compiler throws if absent. In non-production environments
+ * it falls back to "claude-sonnet-4-6" with a console warning. — Wave 1 OQ Resolution
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -67,7 +67,29 @@ import { v4 as uuidv4 } from "uuid";
 export const MISSION_COMPILER_VERSION = "0.1.0";
 const SCHEMA_VERSION = "mission-output-v0.1.0";
 const MODEL_PROVIDER = "anthropic";
-const MODEL_VERSION = "claude-3-5-sonnet-20241022";
+
+function resolveModelVersion(): string {
+  const model = process.env.ANTHROPIC_MODEL;
+  if (!model) {
+    if (process.env.NODE_ENV === "production") {
+      console.error(
+        "[MissionCompiler] CRITICAL: ANTHROPIC_MODEL env var is not set. " +
+        "No production mission generation path may use a hardcoded model. " +
+        "Set ANTHROPIC_MODEL in Railway environment variables."
+      );
+      throw new Error(
+        "ANTHROPIC_MODEL environment variable is required in production"
+      );
+    }
+    const DEV_DEFAULT = "claude-sonnet-4-6";
+    console.warn(
+      `[MissionCompiler] ANTHROPIC_MODEL not set — using dev default: ${DEV_DEFAULT}. ` +
+      "Set ANTHROPIC_MODEL in your .env file."
+    );
+    return DEV_DEFAULT;
+  }
+  return model;
+}
 
 // ─── Input / Output Types ─────────────────────────────────────────────────────
 
@@ -172,6 +194,7 @@ export class MissionCompiler {
    * Returns a MissionCompilerOutput including the audit envelope.
    */
   async compile(input: MissionCompilerInput): Promise<MissionCompilerOutput> {
+    const modelVersion = resolveModelVersion();
     const traceId = uuidv4();
     const requestedAt = new Date().toISOString();
 
@@ -193,7 +216,7 @@ export class MissionCompiler {
       // generate(): call Claude and return raw text/JSON
       async () => {
         const response = await this.client.messages.create({
-          model: MODEL_VERSION,
+          model: modelVersion,
           max_tokens: 4096,
           system: systemPrompt,
           messages: [{ role: "user", content: userMessage }],
@@ -233,7 +256,7 @@ export class MissionCompiler {
       requestedAt,
       result,
       modelProvider: MODEL_PROVIDER,
-      modelVersion: MODEL_VERSION,
+      modelVersion: modelVersion,
       promptTemplateVersion: MISSION_001_PROMPT_TEMPLATE_VERSION,
       schemaVersion: SCHEMA_VERSION,
       safetyPolicyVersion: undefined,
