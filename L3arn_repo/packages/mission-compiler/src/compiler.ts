@@ -48,6 +48,7 @@ import {
 import { MISSION_001_FALLBACK } from "./fallbacks/mission-001.fallback";
 import { withAIRetry } from "./retry/retry-engine";
 import { AIRawMissionOutputSchema } from "./validation/mission-output.schema";
+import { MISSION_OUTPUT_JSON_SCHEMA } from "./validation/mission-output.json-schema";
 import {
   buildParentPlanOutput,
   ParentPlanOutput,
@@ -213,27 +214,37 @@ export class MissionCompiler {
     // ── Generate + Validate with retry ────────────────────────────────────────
 
     const result: AIOutputResult = await withAIRetry(
-      // generate(): call Claude and return raw text/JSON
+      // generate(): call Claude via tool_use (structured output) — no JSON.parse() needed
       async () => {
         const response = await this.client.messages.create({
           model: modelVersion,
           max_tokens: 4096,
           system: systemPrompt,
           messages: [{ role: "user", content: userMessage }],
+          tools: [
+            {
+              name: "generate_mission",
+              description:
+                "Generate a complete L3ARN mission output including all six delivery formats, " +
+                "evidence plan, reward plan, and parent plan.",
+              input_schema: MISSION_OUTPUT_JSON_SCHEMA,
+            },
+          ],
+          tool_choice: { type: "tool", name: "generate_mission" },
         });
 
-        // Extract the text content from Claude's response
-        const textBlock = response.content.find(
-          (block) => block.type === "text",
+        // Extract the tool_use block — SDK parses JSON for us
+        const toolUseBlock = response.content.find(
+          (block) => block.type === "tool_use"
         );
-        if (!textBlock || textBlock.type !== "text") {
+        if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
           throw new Error(
-            "Claude returned no text content block in the response",
+            "Claude did not return a tool_use block for generate_mission"
           );
         }
 
-        // Parse JSON — throws SyntaxError if malformed
-        return JSON.parse(textBlock.text);
+        // toolUseBlock.input is already a parsed JS object — pass directly to validator
+        return toolUseBlock.input;
       },
 
       // validate(): apply strict Zod schema

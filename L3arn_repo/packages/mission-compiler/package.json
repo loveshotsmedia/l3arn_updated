@@ -24,7 +24,8 @@
     "@anthropic-ai/sdk": "^0.26.0",
     "@l3arn/shared-types": "workspace:*",
     "uuid": "^9.0.0",
-    "zod": "^3.23.0"
+    "zod": "^3.23.0",
+    "zod-to-json-schema": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
