@@ -36,14 +36,12 @@ export type ModerationTriggerSource =
  *
  * @param violation           - The boundary violation that triggered this event
  * @param childProfileId      - UUID of the child's profile (never real name/PII)
- * @param sessionId           - UUID of the active session, if any (optional)
  * @param triggeredBy         - Source of the violation (companion, mission, or user input)
  * @param aiOutputEnvelopeId  - UUID of the AI output envelope, if applicable (optional)
  */
 export function createModerationEvent(
   violation: BoundaryViolation,
   childProfileId: string,
-  sessionId: string | undefined,
   triggeredBy: ModerationTriggerSource,
   aiOutputEnvelopeId?: string,
 ): ModerationEvent {

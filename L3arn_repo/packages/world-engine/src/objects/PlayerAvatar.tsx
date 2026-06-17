@@ -11,7 +11,7 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import { Vector3, type Mesh } from 'three';
+import { Vector3, type Group } from 'three';
 import { HOUSE_COLORS } from '../types';
 import { useWorldStore } from '../state/worldStore';
 
@@ -28,7 +28,7 @@ export function PlayerAvatar({
   house,
   initialPosition = [3, 0.9, 3],
 }: PlayerAvatarProps) {
-  const meshRef = useRef<Mesh>(null);
+  const meshRef = useRef<Group>(null);
   const currentPos = useRef(new Vector3(...initialPosition));
   const targetVec = useRef(new Vector3(...initialPosition));
 
