@@ -13,16 +13,12 @@
  * IMPORTANT: The /api/safety/check route MUST be protected by admin authentication
  * before Phase 1. In Phase 0, it is restricted to internal/test use.
  *
- * OPEN QUESTION: The /api/safety/check endpoint returns raw classifier results
- * including matched rule names. This is acceptable for internal testing, but
- * should it be gated behind AdminAccessRole in Phase 1, or removed from the
- * production build entirely? — Agent 7, Phase 0
- *
  * Grounded in: ADR-048 (Founder Mission Control — provisional),
  * ADR-049 (admin access model — provisional).
  */
 
-import { Router, type Request, type Response } from "express";
+import { Router, type Router as ExpressRouter, type Request, type Response } from "express";
+import { requireAdminAuth } from "../middleware/admin-auth.middleware";
 import {
   classifyBlockedTopics,
   checkCompanionBoundaries,
@@ -34,7 +30,7 @@ import { PLATFORM_BLOCKED_CATEGORIES } from "@l3arn/safety";
 // Safety package version — increment when safety policy changes
 const SAFETY_VERSION = "0.1.0";
 
-export const moderationRouter = Router();
+export const moderationRouter: ExpressRouter = Router();
 
 // ─── GET /api/safety/status ───────────────────────────────────────────────────
 
@@ -52,7 +48,7 @@ moderationRouter.get("/status", (_req: Request, res: Response) => {
 // Runs the blocked-topic classifier against provided content.
 // Does NOT run the companion boundary checker (requires a full ChildPermissions object).
 
-moderationRouter.post("/check", (req: Request, res: Response) => {
+moderationRouter.post("/check", requireAdminAuth, (req: Request, res: Response) => {
   const { content, context } = req.body as {
     content?: unknown;
     context?: unknown;

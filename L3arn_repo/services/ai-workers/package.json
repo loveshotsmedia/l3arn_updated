@@ -1,6 +1,9 @@
 {
   "name": "@l3arn/ai-workers",
   "version": "0.0.1",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "description": "L3ARN AI Workers — Railway-deployed HTTP service for mission compilation and AI jobs",
   "main": "./dist/index.js",
   "scripts": {

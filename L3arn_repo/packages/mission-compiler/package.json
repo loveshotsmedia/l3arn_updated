@@ -1,6 +1,9 @@
 {
   "name": "@l3arn/mission-compiler",
   "version": "0.0.1",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "description": "L3ARN Mission Compiler — pure logic package for AI-driven mission generation",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -21,7 +24,8 @@
     "@anthropic-ai/sdk": "^0.26.0",
     "@l3arn/shared-types": "workspace:*",
     "uuid": "^9.0.0",
-    "zod": "^3.23.0"
+    "zod": "^3.23.0",
+    "zod-to-json-schema": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

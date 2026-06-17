@@ -24,10 +24,10 @@
  * at startup and emit a health check failure if absent, rather than failing at
  * compile time. — Agent 6, Phase 0
  *
- * OPEN QUESTION: The model version is hardcoded to "claude-3-5-sonnet-20241022".
- * If the project adopts a model alias (e.g. claude-sonnet-4-5 pointing to the
- * latest Sonnet), this should be moved to a config constant and documented in
- * an ADR. — Agent 6, Phase 0
+ * RESOLVED: Model version is now read from the ANTHROPIC_MODEL env var via
+ * resolveModelVersion(). In production (NODE_ENV=production) the env var is
+ * required and the compiler throws if absent. In non-production environments
+ * it falls back to "claude-sonnet-4-6" with a console warning. — Wave 1 OQ Resolution
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -48,6 +48,7 @@ import {
 import { MISSION_001_FALLBACK } from "./fallbacks/mission-001.fallback";
 import { withAIRetry } from "./retry/retry-engine";
 import { AIRawMissionOutputSchema } from "./validation/mission-output.schema";
+import { MISSION_OUTPUT_JSON_SCHEMA } from "./validation/mission-output.json-schema";
 import {
   buildParentPlanOutput,
   ParentPlanOutput,
@@ -67,7 +68,29 @@ import { v4 as uuidv4 } from "uuid";
 export const MISSION_COMPILER_VERSION = "0.1.0";
 const SCHEMA_VERSION = "mission-output-v0.1.0";
 const MODEL_PROVIDER = "anthropic";
-const MODEL_VERSION = "claude-3-5-sonnet-20241022";
+
+function resolveModelVersion(): string {
+  const model = process.env.ANTHROPIC_MODEL;
+  if (!model) {
+    if (process.env.NODE_ENV === "production") {
+      console.error(
+        "[MissionCompiler] CRITICAL: ANTHROPIC_MODEL env var is not set. " +
+        "No production mission generation path may use a hardcoded model. " +
+        "Set ANTHROPIC_MODEL in Railway environment variables."
+      );
+      throw new Error(
+        "ANTHROPIC_MODEL environment variable is required in production"
+      );
+    }
+    const DEV_DEFAULT = "claude-sonnet-4-6";
+    console.warn(
+      `[MissionCompiler] ANTHROPIC_MODEL not set — using dev default: ${DEV_DEFAULT}. ` +
+      "Set ANTHROPIC_MODEL in your .env file."
+    );
+    return DEV_DEFAULT;
+  }
+  return model;
+}
 
 // ─── Input / Output Types ─────────────────────────────────────────────────────
 
@@ -172,6 +195,7 @@ export class MissionCompiler {
    * Returns a MissionCompilerOutput including the audit envelope.
    */
   async compile(input: MissionCompilerInput): Promise<MissionCompilerOutput> {
+    const modelVersion = resolveModelVersion();
     const traceId = uuidv4();
     const requestedAt = new Date().toISOString();
 
@@ -190,27 +214,37 @@ export class MissionCompiler {
     // ── Generate + Validate with retry ────────────────────────────────────────
 
     const result: AIOutputResult = await withAIRetry(
-      // generate(): call Claude and return raw text/JSON
+      // generate(): call Claude via tool_use (structured output) — no JSON.parse() needed
       async () => {
         const response = await this.client.messages.create({
-          model: MODEL_VERSION,
+          model: modelVersion,
           max_tokens: 4096,
           system: systemPrompt,
           messages: [{ role: "user", content: userMessage }],
+          tools: [
+            {
+              name: "generate_mission",
+              description:
+                "Generate a complete L3ARN mission output including all six delivery formats, " +
+                "evidence plan, reward plan, and parent plan.",
+              input_schema: MISSION_OUTPUT_JSON_SCHEMA,
+            },
+          ],
+          tool_choice: { type: "tool", name: "generate_mission" },
         });
 
-        // Extract the text content from Claude's response
-        const textBlock = response.content.find(
-          (block) => block.type === "text",
+        // Extract the tool_use block — SDK parses JSON for us
+        const toolUseBlock = response.content.find(
+          (block) => block.type === "tool_use"
         );
-        if (!textBlock || textBlock.type !== "text") {
+        if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
           throw new Error(
-            "Claude returned no text content block in the response",
+            "Claude did not return a tool_use block for generate_mission"
           );
         }
 
-        // Parse JSON — throws SyntaxError if malformed
-        return JSON.parse(textBlock.text);
+        // toolUseBlock.input is already a parsed JS object — pass directly to validator
+        return toolUseBlock.input;
       },
 
       // validate(): apply strict Zod schema
@@ -233,7 +267,7 @@ export class MissionCompiler {
       requestedAt,
       result,
       modelProvider: MODEL_PROVIDER,
-      modelVersion: MODEL_VERSION,
+      modelVersion: modelVersion,
       promptTemplateVersion: MISSION_001_PROMPT_TEMPLATE_VERSION,
       schemaVersion: SCHEMA_VERSION,
       safetyPolicyVersion: undefined,

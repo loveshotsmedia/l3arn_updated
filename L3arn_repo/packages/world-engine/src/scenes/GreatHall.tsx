@@ -22,13 +22,15 @@
 import { SortingComputer } from '../objects/SortingComputer';
 import { PlayerAvatar } from '../objects/PlayerAvatar';
 import type { SceneProps } from '../types';
+import { useWorldStore } from '../state/worldStore';
 
 export function GreatHall({ onEvent, displayName = 'Explorer', house }: SceneProps) {
+  const setMoveTarget = useWorldStore((s) => s.setMoveTarget);
+
   function handleFloorClick(e: { stopPropagation: () => void; point?: { x: number; y: number; z: number } }) {
     e.stopPropagation();
     const pt = e.point ?? { x: 0, y: 0, z: 0 };
-    // Placeholder: log target position. Avatar lerp will be wired in full R3F scene.
-    console.log('[L3ARN] Click-to-move target:', pt);
+    setMoveTarget(pt.x, 0, pt.z);
     onEvent({
       type: 'avatar-move-requested',
       targetPosition: { x: pt.x, y: 0, z: pt.z },

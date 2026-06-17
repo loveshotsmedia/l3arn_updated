@@ -16,6 +16,7 @@
  */
 
 import { z } from "zod";
+import { MasteryLevelSchema, type MasteryLevel } from "./mission.schema";
 
 // ─── Evidence Capture Types (ADR-026) ─────────────────────────────────────────
 
@@ -113,13 +114,7 @@ export type Artifact = z.infer<typeof ArtifactSchema>;
 // Evidence-based: every mastery claim carries its proof chain. (ADR-010)
 // Maps to: mastery_records table
 
-export const MasteryLevelSchema = z.enum([
-  "emerging",
-  "developing",
-  "proficient",
-  "advanced",
-]);
-export type MasteryLevel = z.infer<typeof MasteryLevelSchema>;
+export { MasteryLevelSchema, type MasteryLevel };
 
 export const MasteryRecordSchema = z.object({
   id: z.string().uuid(),

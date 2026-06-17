@@ -61,3 +61,4 @@ export {
   type KillSwitchTrigger,
   type KillSwitchEvent,
 } from "./kill-switch/kill-switch.interface";
+export * from "./kill-switch/safety-containment.interface";

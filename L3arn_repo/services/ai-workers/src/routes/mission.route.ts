@@ -28,7 +28,7 @@
  * valid Railway-internal service token or Supabase JWT. — Agent 6, Phase 0
  */
 
-import { Router, Request, Response } from "express";
+import { Router, type Router as ExpressRouter, Request, Response } from "express";
 import { z } from "zod";
 import {
   MissionCompiler,
@@ -85,7 +85,7 @@ type MissionCompileRequest = z.infer<typeof MissionCompileRequestSchema>;
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-export const missionRouter = Router();
+export const missionRouter: ExpressRouter = Router();
 
 /**
  * POST /api/missions/compile

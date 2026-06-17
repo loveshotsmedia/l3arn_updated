@@ -29,10 +29,19 @@ export default function HouseSelectionPage() {
   async function handleConfirm() {
     if (!selected) return;
     setSaving(true);
+    // SPRINT 2 TODO: Replace this placeholder with a backend-mediated write.
+    // Required flow:
+    //   1. POST /api/student/session/house  { house: selected }
+    //      with Authorization: Bearer <child-session-token>
+    //   2. Railway validates child_sessions row (ADR-031)
+    //   3. Railway writes academy_identities.house = selected (NOT child_profiles)
+    //   4. Railway returns { success: true, house: selected }
+    // Do NOT write directly to Supabase from the frontend for this.
     localStorage.setItem("l3arn_house", selected);
-    // Placeholder: UPDATE academy_identities SET house = $house
-    // Requires: authenticated child session scope (ADR-031)
-    console.log("[L3ARN] Placeholder Supabase write — academy_identities.house:", selected);
+    console.warn(
+      "[L3ARN PLACEHOLDER] House selection not persisted to Supabase. " +
+      "Backend-mediated write required (Sprint 2). house:", selected
+    );
     setSaving(false);
     router.push("/student/onboarding/companion");
   }

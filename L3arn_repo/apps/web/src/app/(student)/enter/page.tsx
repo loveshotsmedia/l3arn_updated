@@ -1,10 +1,19 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function EnterAcademyPage() {
   const router = useRouter();
 
+  // SPRINT 2 TODO: Replace localStorage reads with backend child session verification.
+  // Required flow (ADR-031):
+  //   1. Read child session token from URL param or secure cookie
+  //   2. POST /api/student/session/verify  { token }
+  //   3. Railway checks child_sessions row (not expired, not revoked)
+  //   4. Return { displayName, house, academyName, sessionId }
+  //   5. Reject and redirect to /student/enter-error if invalid
+  // localStorage is a Phase 0 placeholder ONLY. Never trust it for identity.
   const displayName =
     typeof window !== "undefined"
       ? (localStorage.getItem("l3arn_display_name") ?? "Explorer")
@@ -13,6 +22,15 @@ export default function EnterAcademyPage() {
     typeof window !== "undefined"
       ? (localStorage.getItem("l3arn_academy_name") ?? "The L3ARN Academy")
       : "The L3ARN Academy";
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "[L3ARN DEV] /student/enter is using localStorage for identity. " +
+        "Backend child session verification (ADR-031) is required before Sprint 2 launch."
+      );
+    }
+  }, []);
 
   function handleEnter() {
     router.push("/student/academy");
