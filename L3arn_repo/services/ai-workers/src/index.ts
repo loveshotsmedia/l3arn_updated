@@ -20,11 +20,11 @@
  * health monitoring. Add before first Railway deploy. — Agent 6, Phase 0
  */
 
-import express from "express";
+import express, { type Express } from "express";
 import { missionRouter } from "./routes/mission.route";
 import { moderationRouter } from "./routes/moderation.route";
 
-const app = express();
+const app: Express = express();
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
 
 // ─── Guard: ANTHROPIC_API_KEY ─────────────────────────────────────────────────

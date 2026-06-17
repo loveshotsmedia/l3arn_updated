@@ -205,7 +205,6 @@ export async function safetyMiddleware(
       const moderationEvent = createModerationEvent(
         violation,
         childProfileId,
-        sessionId,
         safetyContext === "companion-dialogue" ? "companion-response" : "mission-output",
       );
       logSafetyEvent("info", "safetyMiddleware: moderation event created (not yet persisted)", {

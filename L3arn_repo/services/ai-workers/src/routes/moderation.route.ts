@@ -17,7 +17,7 @@
  * ADR-049 (admin access model — provisional).
  */
 
-import { Router, type Request, type Response } from "express";
+import { Router, type Router as ExpressRouter, type Request, type Response } from "express";
 import { requireAdminAuth } from "../middleware/admin-auth.middleware";
 import {
   classifyBlockedTopics,
@@ -30,7 +30,7 @@ import { PLATFORM_BLOCKED_CATEGORIES } from "@l3arn/safety";
 // Safety package version — increment when safety policy changes
 const SAFETY_VERSION = "0.1.0";
 
-export const moderationRouter = Router();
+export const moderationRouter: ExpressRouter = Router();
 
 // ─── GET /api/safety/status ───────────────────────────────────────────────────
 
