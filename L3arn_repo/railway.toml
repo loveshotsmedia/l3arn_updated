@@ -1,0 +1,11 @@
+[build]
+# Build the ai-workers service and all its workspace dependencies.
+# Railway Root Directory must be left BLANK — this monorepo IS the git repo root.
+buildCommand = "npm install -g pnpm && pnpm install --frozen-lockfile && pnpm --filter @l3arn/shared-types build && pnpm --filter @l3arn/safety build && pnpm --filter @l3arn/mission-compiler build && pnpm --filter @l3arn/ai-workers build"
+
+[deploy]
+startCommand = "node services/ai-workers/dist/index.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
