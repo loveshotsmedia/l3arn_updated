@@ -17,6 +17,8 @@ import type {
   SetHouseResponse,
   SelectCompanionResponse,
   SelectableHouse,
+  StartMissionResponse,
+  CompleteMissionResponse,
 } from "@l3arn/shared-types";
 
 const TOKEN_KEY = "l3arn_session_token";
@@ -224,4 +226,60 @@ export async function selectCompanion(
       message: "Could not reach the Academy. Check your connection and try again.",
     };
   }
+}
+
+// ── Mission runtime ──────────────────────────────────────────────────────────
+
+async function authedPost<T>(path: string, body: unknown): Promise<ApiOutcome<T>> {
+  const base = railwayBaseUrl();
+  if (!base) return NOT_CONFIGURED;
+
+  const token = getSessionToken();
+  if (!token) {
+    return {
+      ok: false,
+      status: 401,
+      error: "SESSION_TOKEN_MISSING",
+      message: "Your session could not be found. Ask a parent to start a new one.",
+    };
+  }
+
+  try {
+    const res = await fetch(`${base}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const { error, message } = await parseError(res);
+      return { ok: false, status: res.status, error, message };
+    }
+    return { ok: true, data: (await res.json()) as T };
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      error: "NETWORK_ERROR",
+      message: "Could not reach the Academy. Check your connection and try again.",
+    };
+  }
+}
+
+/** Start a mission: backend compiles (validated/fallback) + creates the attempt. */
+export function startMission(missionId = "mission-001"): Promise<ApiOutcome<StartMissionResponse>> {
+  return authedPost<StartMissionResponse>("/api/student/mission/start", { missionId });
+}
+
+export interface CompleteMissionInput {
+  missionAttemptId: string;
+  completedAllTasks?: boolean;
+  masteryThresholdMet?: boolean;
+  masteryEvidenceScore?: number;
+}
+
+/** Complete a mission: records completion + rewards/evidence/mastery/report. */
+export function completeMission(
+  input: CompleteMissionInput,
+): Promise<ApiOutcome<CompleteMissionResponse>> {
+  return authedPost<CompleteMissionResponse>("/api/student/mission/complete", input);
 }

@@ -46,7 +46,7 @@ export default function CompanionSelectionPage() {
 
     if (outcome.ok) {
       setSaving(false);
-      router.push("/student/academy");
+      router.push("/student/mission/mission-001");
       return;
     }
 
@@ -63,7 +63,7 @@ export default function CompanionSelectionPage() {
         companion.id,
       );
       setSaving(false);
-      router.push("/student/academy");
+      router.push("/student/mission/mission-001");
       return;
     }
 

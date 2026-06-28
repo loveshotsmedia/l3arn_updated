@@ -175,3 +175,78 @@ export const SelectCompanionResponseSchema = z.object({
 });
 
 export type SelectCompanionResponse = z.infer<typeof SelectCompanionResponseSchema>;
+
+// ─── Mission Runtime: Start ────────────────────────────────────────────────────
+//
+// POST /api/student/mission/start
+// Auth: Authorization: Bearer <childSessionToken>
+// Backend compiles the mission (Zod-validated; static fallback on AI failure —
+// no unvalidated AI output ever reaches the child) and creates a mission_attempts
+// row. Returns a compact student-facing mission view + the attempt id.
+
+export const StartMissionRequestSchema = z.object({
+  /** Canonical mission identifier. Hero Slice = "mission-001". */
+  missionId: z.string().min(1).max(64).default("mission-001"),
+});
+
+export type StartMissionRequest = z.infer<typeof StartMissionRequestSchema>;
+
+export const StudentMissionTaskSchema = z.object({
+  id: z.string(),
+  description: z.string(),
+  interactionType: z.string(),
+});
+
+export const StartMissionResponseSchema = z.object({
+  missionAttemptId: z.string().uuid(),
+  missionId: z.string(),
+  /** Provenance: 'ai' = compiled+validated; 'fallback' = static safe content. */
+  contentSource: z.enum(["ai", "fallback"]),
+  storyHook: z.string(),
+  tasks: z.array(StudentMissionTaskSchema),
+  rewardPreviewLabel: z.string(),
+});
+
+export type StartMissionResponse = z.infer<typeof StartMissionResponseSchema>;
+
+// ─── Mission Runtime: Complete ─────────────────────────────────────────────────
+//
+// POST /api/student/mission/complete
+// Auth: Authorization: Bearer <childSessionToken>
+// Idempotent: the first call transitions the attempt started→completed and runs
+// the reward + evidence + mastery + report pipeline. Repeat calls do not
+// re-award (alreadyCompleted=true).
+
+export const CompleteMissionRequestSchema = z.object({
+  missionAttemptId: z.string().uuid(),
+  /** Did the child finish all tasks (vs. just attempt)? Gates completion bonuses. */
+  completedAllTasks: z.boolean().default(true),
+  /** Did the child demonstrate the mastery bar (e.g. caught the AI mistake)? */
+  masteryThresholdMet: z.boolean().default(false),
+  /** Optional 0–1 evidence-weighted score. */
+  masteryEvidenceScore: z.number().min(0).max(1).optional(),
+});
+
+export type CompleteMissionRequest = z.infer<typeof CompleteMissionRequestSchema>;
+
+export const MissionRewardSummarySchema = z.object({
+  moolahEarned: z.number().int().nonnegative(),
+  xpEarned: z.number().int().nonnegative(),
+  housePointsEarned: z.number().int().nonnegative(),
+  companionBondDelta: z.number().int().nonnegative(),
+  badgesAwarded: z.array(z.string()),
+});
+
+export const CompleteMissionResponseSchema = z.object({
+  missionAttemptId: z.string().uuid(),
+  status: z.literal("completed"),
+  /** True if this completion was already recorded — no rewards were re-applied. */
+  alreadyCompleted: z.boolean(),
+  rewards: MissionRewardSummarySchema,
+  evidenceCount: z.number().int().nonnegative(),
+  masteryRecordsWritten: z.number().int().nonnegative(),
+  /** parent_reports row id (First Learning Map), or null if assembly was skipped. */
+  reportId: z.string().uuid().nullable(),
+});
+
+export type CompleteMissionResponse = z.infer<typeof CompleteMissionResponseSchema>;

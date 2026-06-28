@@ -202,6 +202,112 @@ async function main() {
   check("companion: re-select keeps bond_level=7 (no clobber)", comp2Body?.companion?.bondLevel === 7, `got ${comp2Body?.companion?.bondLevel}`);
   check("companion: re-select updates key to luna", comp2Body?.companion?.companionKey === "comp-002-luna");
 
+  // ── 5b. Mission 001 runtime: start ───────────────────────────────────────────
+  const startMissionRes = await fetch(`${API}/api/student/mission/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ missionId: "mission-001" }),
+  });
+  const startMissionBody = await startMissionRes.json().catch(() => ({}));
+  check("mission start: 200", startMissionRes.status === 200, `status ${startMissionRes.status} ${JSON.stringify(startMissionBody)}`);
+  const attemptId = startMissionBody.missionAttemptId;
+  check("mission start: returns attempt id", !!attemptId);
+  check("mission start: content is validated or static fallback (no raw AI)", ["ai", "fallback"].includes(startMissionBody.contentSource), `got ${startMissionBody.contentSource}`);
+  check("mission start: has tasks", Array.isArray(startMissionBody.tasks) && startMissionBody.tasks.length > 0);
+
+  const { data: attemptStarted } = await supabase
+    .from("mission_attempts")
+    .select("status")
+    .eq("id", attemptId)
+    .single();
+  check("mission start: mission_attempts row is 'started'", attemptStarted?.status === "started");
+
+  // ── 5c. Mission 001 runtime: complete ────────────────────────────────────────
+  const completeRes = await fetch(`${API}/api/student/mission/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ missionAttemptId: attemptId, completedAllTasks: true, masteryThresholdMet: true }),
+  });
+  const completeBody = await completeRes.json().catch(() => ({}));
+  check("mission complete: 200", completeRes.status === 200, `status ${completeRes.status} ${JSON.stringify(completeBody)}`);
+  check("mission complete: not alreadyCompleted (first call)", completeBody.alreadyCompleted === false);
+  check("mission complete: moolah=25", completeBody?.rewards?.moolahEarned === 25, `got ${completeBody?.rewards?.moolahEarned}`);
+  check("mission complete: xp=75 (50+25)", completeBody?.rewards?.xpEarned === 75, `got ${completeBody?.rewards?.xpEarned}`);
+  check("mission complete: housePoints=15 (10+5 evidence)", completeBody?.rewards?.housePointsEarned === 15, `got ${completeBody?.rewards?.housePointsEarned}`);
+  check("mission complete: companionBond=20 (15+5 mastery)", completeBody?.rewards?.companionBondDelta === 20, `got ${completeBody?.rewards?.companionBondDelta}`);
+  check("mission complete: both badges awarded", Array.isArray(completeBody?.rewards?.badgesAwarded) && completeBody.rewards.badgesAwarded.includes("mission-001-complete") && completeBody.rewards.badgesAwarded.includes("ai-literacy-1"), JSON.stringify(completeBody?.rewards?.badgesAwarded));
+  check("mission complete: evidence captured", completeBody.evidenceCount > 0, `got ${completeBody.evidenceCount}`);
+  check("mission complete: mastery records written", completeBody.masteryRecordsWritten > 0, `got ${completeBody.masteryRecordsWritten}`);
+  check("mission complete: First Learning Map generated", !!completeBody.reportId, `reportId ${completeBody.reportId}`);
+
+  // ── 5d. Verify DB rows landed ────────────────────────────────────────────────
+  const { data: attemptDone } = await supabase
+    .from("mission_attempts")
+    .select("status, completed_at, mastery_achieved")
+    .eq("id", attemptId)
+    .single();
+  check("DB: mission_attempts completed", attemptDone?.status === "completed" && attemptDone?.completed_at != null && attemptDone?.mastery_achieved === true);
+
+  const { data: ledger } = await supabase
+    .from("moolah_ledger")
+    .select("amount, balance_after")
+    .eq("source_id", attemptId);
+  check("DB: one moolah_ledger row for attempt", (ledger?.length ?? 0) === 1, `count ${ledger?.length}`);
+  check("DB: ledger balance_after set by trigger", ledger?.[0]?.balance_after === 25, `got ${ledger?.[0]?.balance_after}`);
+
+  const { data: wallet } = await supabase
+    .from("moolah_wallets")
+    .select("balance")
+    .eq("child_profile_id", child.id)
+    .single();
+  check("DB: wallet balance = 25 (atomic via trigger)", wallet?.balance === 25, `got ${wallet?.balance}`);
+
+  const { data: xp } = await supabase.from("xp_events").select("xp_amount").eq("source_id", attemptId);
+  check("DB: xp_events row written (75)", (xp?.length ?? 0) === 1 && xp?.[0]?.xp_amount === 75, JSON.stringify(xp));
+
+  const { data: hp } = await supabase.from("house_points").select("points, house").eq("source_id", attemptId);
+  check("DB: house_points row (15, Cytrex)", hp?.[0]?.points === 15 && hp?.[0]?.house === "Cytrex", JSON.stringify(hp));
+
+  const { data: evidence } = await supabase
+    .from("learning_evidence_events")
+    .select("id")
+    .eq("mission_attempt_id", attemptId);
+  check("DB: learning_evidence_events match count", (evidence?.length ?? 0) === completeBody.evidenceCount, `db ${evidence?.length} vs api ${completeBody.evidenceCount}`);
+
+  const { data: mastery } = await supabase
+    .from("mastery_records")
+    .select("id, evidence_event_ids")
+    .eq("child_profile_id", child.id);
+  check("DB: mastery_records written with proof chain", (mastery?.length ?? 0) > 0 && (mastery?.[0]?.evidence_event_ids?.length ?? 0) > 0, `count ${mastery?.length}`);
+
+  const { data: badgesAwarded } = await supabase.from("child_badges").select("id").eq("source_id", attemptId);
+  check("DB: child_badges rows written (2)", (badgesAwarded?.length ?? 0) === 2, `count ${badgesAwarded?.length}`);
+
+  const { data: growth } = await supabase.from("companion_growth_events").select("bond_delta").eq("source_id", attemptId);
+  check("DB: companion_growth_events row (bond +20)", growth?.[0]?.bond_delta === 20, JSON.stringify(growth));
+
+  const { data: report } = await supabase.from("parent_reports").select("id, report_type").eq("mission_attempt_id", attemptId).maybeSingle();
+  check("DB: parent_reports (First Learning Map) row exists", report?.report_type === "unified-first-learning-map");
+
+  // ── 5e. Idempotency: re-complete must NOT double-award ────────────────────────
+  const recompleteRes = await fetch(`${API}/api/student/mission/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ missionAttemptId: attemptId, completedAllTasks: true, masteryThresholdMet: true }),
+  });
+  const recompleteBody = await recompleteRes.json().catch(() => ({}));
+  check("idempotency: re-complete returns alreadyCompleted", recompleteBody.alreadyCompleted === true, `status ${recompleteRes.status} ${JSON.stringify(recompleteBody)}`);
+
+  const { data: walletAfter } = await supabase
+    .from("moolah_wallets")
+    .select("balance")
+    .eq("child_profile_id", child.id)
+    .single();
+  check("idempotency: wallet balance unchanged (still 25)", walletAfter?.balance === 25, `got ${walletAfter?.balance}`);
+
+  const { data: ledgerAfter } = await supabase.from("moolah_ledger").select("id").eq("source_id", attemptId);
+  check("idempotency: still one moolah_ledger row", (ledgerAfter?.length ?? 0) === 1, `count ${ledgerAfter?.length}`);
+
   // ── 6. Fail-closed cases ─────────────────────────────────────────────────────
   const badTokRes = await fetch(`${API}/api/sessions/verify`, {
     method: "POST",

@@ -32,6 +32,7 @@ import { moderationRouter } from "./routes/moderation.route";
 import { createReportsRouter } from "./reports/unified-first-learning-map";
 import { sessionsRouter } from "./routes/sessions.route";
 import { studentSessionRouter } from "./routes/student-session.route";
+import { studentMissionRouter } from "./routes/mission-runtime.route";
 import { corsMiddleware } from "./lib/cors";
 
 const app: Express = express();
@@ -68,6 +69,7 @@ app.use("/api/safety", moderationRouter);
 app.use("/api/reports", createReportsRouter());
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/student/session", studentSessionRouter);
+app.use("/api/student/mission", studentMissionRouter);
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────
 app.use((_req, res) => {
@@ -105,6 +107,8 @@ app.listen(PORT, () => {
   console.log(`[ai-workers] Session verify: POST /api/sessions/verify`);
   console.log(`[ai-workers] Set house: POST /api/student/session/house`);
   console.log(`[ai-workers] Select companion: POST /api/student/session/companion`);
+  console.log(`[ai-workers] Mission start: POST /api/student/mission/start`);
+  console.log(`[ai-workers] Mission complete: POST /api/student/mission/complete`);
 });
 
 export default app;
