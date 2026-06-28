@@ -18,13 +18,13 @@ if (!SAFETY_ADMIN_TOKEN) {
   if (process.env.NODE_ENV === "production") {
     console.error(
       "[AdminAuth] CRITICAL: SAFETY_ADMIN_TOKEN is not set. " +
-      "Admin-gated endpoints are UNPROTECTED. Set SAFETY_ADMIN_TOKEN in Railway."
+      "Admin-gated endpoints are DISABLED (fail-closed: every request returns 503) until it is set. " +
+      "Set SAFETY_ADMIN_TOKEN in Railway."
     );
   } else {
     console.warn(
-      "[AdminAuth] SAFETY_ADMIN_TOKEN not set — admin endpoints require the header " +
-      "Authorization: Bearer dev-only-token-replace-in-prod in local dev. " +
-      "Set SAFETY_ADMIN_TOKEN in your .env file."
+      "[AdminAuth] SAFETY_ADMIN_TOKEN not set — admin-gated endpoints will return 503 (fail-closed) " +
+      "until you set SAFETY_ADMIN_TOKEN in your .env file."
     );
   }
 }
