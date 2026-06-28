@@ -8,21 +8,17 @@
 --     OQ-15 → Create onboarding_sessions (server-side onboarding token)
 -- =============================================================================
 
-BEGIN;
-
 -- ---------------------------------------------------------------------------
 -- 1. Add pre_sorting to house_name enum
 -- ---------------------------------------------------------------------------
--- pre_sorting is the value set for academy_identities.house before the
--- Sorting Ceremony. Never display it as a real House name in the UI.
--- Restoration to a real House requires founder/admin review.
+-- pre_sorting is set for academy_identities.house before the Sorting Ceremony.
+-- Note: ALTER TYPE ADD VALUE is non-transactional in PostgreSQL — the new value
+-- cannot be used as a DEFAULT in the same migration transaction.
+-- Application code must explicitly pass 'pre_sorting' on INSERT (not relying on DEFAULT).
 
 ALTER TYPE public.house_name ADD VALUE IF NOT EXISTS 'pre_sorting' BEFORE 'Valkryn';
 
--- Update academy_identities default so new inserts before Sorting Ceremony
--- get pre_sorting automatically.
-ALTER TABLE public.academy_identities
-  ALTER COLUMN house SET DEFAULT 'pre_sorting';
+BEGIN;
 
 -- ---------------------------------------------------------------------------
 -- 2. parent_curriculum_prefs table

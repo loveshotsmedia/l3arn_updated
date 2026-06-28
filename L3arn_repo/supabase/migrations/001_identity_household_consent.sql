@@ -38,6 +38,10 @@
 
 BEGIN;
 
+-- Defer SQL function body validation so forward-referencing helper functions
+-- (auth_owns_household, auth_owns_child) can be defined before their tables.
+SET LOCAL check_function_bodies = off;
+
 -- ---------------------------------------------------------------------------
 -- 0. Shared Enums
 -- ---------------------------------------------------------------------------
@@ -757,7 +761,17 @@ CREATE TABLE IF NOT EXISTS public.child_sessions (
   ended_at              timestamptz,
   current_room_id       text,
   -- Opaque Railway session reference for cross-system reconciliation; no PII
-  railway_session_ref   text
+  railway_session_ref   text,
+
+  -- OQ-A8-001: session token + launch metadata (added before first deploy)
+  -- session_token: opaque token issued by Railway. NEVER equal to child_profile_id.
+  -- Generated via crypto.randomUUID(). Child app uses this to authenticate API calls.
+  session_token         text                  NOT NULL DEFAULT gen_random_uuid()::text UNIQUE,
+  -- launch_mode: how the session was initiated. Scaffolds trusted_device_pin for Phase 1.
+  launch_mode           text                  NOT NULL DEFAULT 'parent_launched'
+                          CHECK (launch_mode IN ('parent_launched', 'trusted_device_pin')),
+  -- launched_by: auth.users.id of the parent who initiated the session (audit trail).
+  launched_by           text
 );
 
 ALTER TABLE public.child_sessions ENABLE ROW LEVEL SECURITY;
@@ -772,6 +786,10 @@ CREATE INDEX IF NOT EXISTS idx_child_sessions_started_at
 CREATE INDEX IF NOT EXISTS idx_child_sessions_expires_at
   ON public.child_sessions (expires_at)
   WHERE revoked_at IS NULL AND ended_at IS NULL; -- active session expiry lookup
+
+-- OQ-A8-001: token lookup index — Railway verifies tokens on every child API call
+CREATE INDEX IF NOT EXISTS child_sessions_token_idx
+  ON public.child_sessions (session_token);
 
 -- RLS Policies
 

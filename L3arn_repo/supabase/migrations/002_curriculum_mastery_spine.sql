@@ -51,40 +51,48 @@ $$;
 -- Types (curriculum-specific)
 -- ---------------------------------------------------------------------------
 
-CREATE TYPE IF NOT EXISTS public.mastery_level AS ENUM (
-  'emerging',
-  'developing',
-  'proficient',
-  'advanced'
-);
+DO $$ BEGIN
+  CREATE TYPE public.mastery_level AS ENUM (
+    'emerging',
+    'developing',
+    'proficient',
+    'advanced'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE IF NOT EXISTS public.standards_source AS ENUM (
-  'florida-cpalms',   -- Official Florida K-8 standards (ADR-025)
-  'l3arn-internal',   -- L3ARN Mastery Map standards
-  'ccss',             -- Common Core (future)
-  'ngss'              -- Next Gen Science Standards (future)
-);
+DO $$ BEGIN
+  CREATE TYPE public.standards_source AS ENUM (
+    'florida-cpalms',
+    'l3arn-internal',
+    'ccss',
+    'ngss'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE IF NOT EXISTS public.mission_output_type AS ENUM (
-  'parent-plan',
-  'student-3d-mission',
-  'student-interactive-lite',
-  'student-text-audio-offline',
-  'evidence-plan',
-  'reward-plan'
-);
+DO $$ BEGIN
+  CREATE TYPE public.mission_output_type AS ENUM (
+    'parent-plan',
+    'student-3d-mission',
+    'student-interactive-lite',
+    'student-text-audio-offline',
+    'evidence-plan',
+    'reward-plan'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TYPE IF NOT EXISTS public.evidence_capture_type AS ENUM (
-  'decision-log',
-  'sequence-completion',
-  'ai-mistake-check',
-  'explanation',
-  'reflection',
-  'artifact-upload',
-  'audio-response',         -- push-to-talk only (ADR-027)
-  'structured-replay',
-  'screenshot'              -- no face/webcam data (ADR-026)
-);
+DO $$ BEGIN
+  CREATE TYPE public.evidence_capture_type AS ENUM (
+    'decision-log',
+    'sequence-completion',
+    'ai-mistake-check',
+    'explanation',
+    'reflection',
+    'artifact-upload',
+    'audio-response',
+    'structured-replay',
+    'screenshot'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ---------------------------------------------------------------------------
 -- 1. mastery_domains
@@ -574,14 +582,146 @@ GRANT INSERT, UPDATE ON public.evidence_templates TO l3arn_curriculum_admin;
 -- Seeded here so Mission Compiler v0 has something to ground against.
 -- ---------------------------------------------------------------------------
 
--- Seed: AI Literacy domain
+-- Seed: Learning domains required for Mission 001 mastery skills
+-- AI_LITERACY already seeded first (Mission 001 primary domain).
+-- LOGIC, COMPREHENSION, REASONING, LEARNER_CALIBRATION added for canonical skill coverage.
 INSERT INTO public.mastery_domains (code, name, description, display_order)
-VALUES (
-  'AI_LITERACY',
-  'AI Literacy',
-  'Understanding AI systems, their limitations, responsible use, and safety practices.',
-  1
+VALUES
+  (
+    'AI_LITERACY',
+    'AI Literacy',
+    'Understanding AI systems, their limitations, responsible use, and safety practices.',
+    1
+  ),
+  (
+    'LOGIC',
+    'Logic and Sequencing',
+    'Reasoning through ordered steps, patterns, and logical sequences to accomplish goals.',
+    2
+  ),
+  (
+    'COMPREHENSION',
+    'Reading and Listening Comprehension',
+    'Understanding and executing spoken or written multi-step instructions accurately.',
+    3
+  ),
+  (
+    'REASONING',
+    'Evidence-Based Reasoning',
+    'Using available evidence rather than guessing to reach well-grounded conclusions.',
+    4
+  ),
+  (
+    'LEARNER_CALIBRATION',
+    'Learner Calibration',
+    'Initial and ongoing calibration of learning style, cognitive load tolerance, and AI readiness.',
+    5
+  )
+ON CONFLICT (code) DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Seed: Mission 001 Canonical Mastery Skills (OQ-A10-003)
+-- These 5 skills are the canonical mastery targets for Mission 001 tasks.
+-- masterySkillTarget values in the Mission Compiler refer to these rows
+-- by their application-layer key (lowercase dot-notation); the DB code
+-- column stores the uppercase equivalent (required by the code CHECK constraint).
+-- Mapping: DB code             → app canonical key
+--   AI_LITERACY.VERIFY_AI_OUTPUT          → ai_literacy.verify_ai_output
+--   LOGIC.SEQUENCE_STEPS                  → logic.sequence_steps
+--   COMPREHENSION.FOLLOW_MULTISTEP_INSTRUCTIONS → comprehension.follow_multistep_instructions
+--   REASONING.USE_EVIDENCE_TO_DECIDE      → reasoning.use_evidence_to_decide
+--   LEARNER_CALIBRATION.INITIAL_PROFILE   → learner.calibration_initial_profile
+-- ---------------------------------------------------------------------------
+
+INSERT INTO public.mastery_skills (
+  domain_id,
+  code,
+  name,
+  description,
+  grade_band_min,
+  grade_band_max,
+  proficiency_level,
+  mastery_evidence_descriptor,
+  parent_friendly_name,
+  is_ai_literacy,
+  display_order
 )
+SELECT
+  d.id,
+  s.code,
+  s.name,
+  s.description,
+  s.grade_band_min::grade_level,
+  s.grade_band_max::grade_level,
+  s.proficiency_level::mastery_level,
+  s.mastery_evidence_descriptor,
+  s.parent_friendly_name,
+  s.is_ai_literacy,
+  s.display_order
+FROM (
+  VALUES
+    (
+      'AI_LITERACY',
+      'AI_LITERACY.VERIFY_AI_OUTPUT',
+      'Verify AI Output',
+      'Student can evaluate AI-generated output, identify errors or inaccuracies, and apply critical judgment to determine when AI makes mistakes.',
+      'K', '8',
+      'proficient',
+      'Student correctly identifies at least one AI error and can explain why the output is wrong using task context.',
+      'Can catch AI mistakes',
+      true,
+      10
+    ),
+    (
+      'LOGIC',
+      'LOGIC.SEQUENCE_STEPS',
+      'Sequence Steps',
+      'Student can order a set of steps in a logical sequence to accomplish a defined goal.',
+      'K', '8',
+      'proficient',
+      'Student arranges all required steps in the correct order without prompting, completing the task sequence successfully.',
+      'Can put steps in order',
+      false,
+      20
+    ),
+    (
+      'COMPREHENSION',
+      'COMPREHENSION.FOLLOW_MULTISTEP_INSTRUCTIONS',
+      'Follow Multi-Step Instructions',
+      'Student can comprehend and execute multi-step instructions presented in text or audio format, completing each step in sequence.',
+      'K', '8',
+      'proficient',
+      'Student completes all required instruction steps in sequence without skipping or re-ordering steps incorrectly.',
+      'Can follow multi-step directions',
+      false,
+      30
+    ),
+    (
+      'REASONING',
+      'REASONING.USE_EVIDENCE_TO_DECIDE',
+      'Evidence-Based Decision Making',
+      'Student uses available evidence from the task environment rather than guessing to reach conclusions and make decisions.',
+      'K', '8',
+      'proficient',
+      'Student references observable task evidence in their decision-making, rather than selecting options without justification.',
+      'Makes decisions using clues and evidence',
+      false,
+      40
+    ),
+    (
+      'LEARNER_CALIBRATION',
+      'LEARNER_CALIBRATION.INITIAL_PROFILE',
+      'Initial Learner Calibration',
+      'System-captured baseline calibration of the student''s learning style preferences, cognitive load tolerance, hint-seeking behaviour, and AI readiness during Mission 001.',
+      'K', '8',
+      'proficient',
+      'Calibration signals captured from Mission 001 interaction patterns provide a sufficient baseline for companion configuration.',
+      'Learning style baseline established',
+      false,
+      50
+    )
+) AS s(domain_code, code, name, description, grade_band_min, grade_band_max, proficiency_level, mastery_evidence_descriptor, parent_friendly_name, is_ai_literacy, display_order)
+JOIN public.mastery_domains d ON d.code = s.domain_code
 ON CONFLICT (code) DO NOTHING;
 
 -- Seed: Mission 001 pattern

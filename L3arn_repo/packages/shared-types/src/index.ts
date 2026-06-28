@@ -37,3 +37,12 @@ export * from "./permissions.schema";
 export * from "./moderation.schema";
 export * from "./ai.schema";
 export * from "./calibration.schema";
+
+// ── Admin contracts (server-side only — never import in client components) ────
+export * from "./admin.schema";
+
+// ── Session contracts (cross-service: Railway API + Vercel frontend) ──────────
+export * from "./session.schema";
+
+// ── DB ↔ Domain mappers (resolve field name mismatches between Zod and DB) ───
+export * from "./mappers";

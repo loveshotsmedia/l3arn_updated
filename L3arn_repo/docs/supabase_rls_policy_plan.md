@@ -181,6 +181,11 @@ L3ARN uses three caller identities against Supabase:
 
 **Rationale:** Child sessions are created server-side (Railway) after verifying parent launch or trusted-device PIN. The client cannot self-create a session row.
 
+**OQ-A8-001 note:** `child_sessions.session_token` (TEXT NOT NULL UNIQUE) is service-role write only.
+The Railway backend generates this token via `crypto.randomUUID()` — it is NEVER equal to `child_profile_id`.
+No RLS SELECT policy exposes `session_token` to authenticated or anon callers. Token reads are
+service-role only (Railway token verification on each child API request).
+
 ---
 
 ### `trusted_devices`
@@ -312,7 +317,7 @@ Every RLS policy must be tested by the QA agent (Agent M) before any migration i
 | OQ-RLS-003 | **Co-parent RLS scope** | Multi-adult households | ✅ **RESOLVED** — MVP: one primary parent/guardian. Co-parent rows in `household_members` exist structurally but co-parent invitation flow is future. No co-parent RLS scope required for Hero Slice. |
 | OQ-RLS-004 | **Child session expiry** | Security | ✅ **RESOLVED** — `child_sessions.expires_at` is required (NOT NULL). `revoked_at` nullable. Backend rejects expired or revoked sessions on every API request. Parent can revoke active sessions. Defaults: 2h parent-launched, 4h trusted-device PIN. |
 | OQ-RLS-005 | **Migration 008** | Migration sequencing | ✅ **RESOLVED** — No Migration 008. Migration path ends at 007. Audit tables: `security_audit_events` in 003, `admin_audit_logs` in 007. |
-| OQ-RLS-006 | **`child_sessions.expires_at` in Migration 001** | Pre-deploy | Open — `expires_at NOT NULL` and `revoked_at` columns must be added to the `child_sessions` table in Migration 001 before first deploy. Migration 001 predates this decision. |
+| OQ-RLS-006 | **`child_sessions.expires_at` in Migration 001** | Pre-deploy | ✅ **RESOLVED (OQ-A8-001, June 2026)** — `expires_at NOT NULL` and `revoked_at` were already present in Migration 001. Additionally, `session_token TEXT NOT NULL UNIQUE`, `launch_mode TEXT NOT NULL DEFAULT 'parent_launched'`, and `launched_by TEXT` were added to Migration 001 as part of OQ-A8-001. `child_sessions_token_idx` index also added. |
 
 ---
 

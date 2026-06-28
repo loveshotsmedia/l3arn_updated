@@ -9,10 +9,17 @@ dist/
 out/
 build/
 
-# Environment files
+# Environment files — only .env.example files should ever be committed
+# .env.example must contain ONLY placeholders, never real values
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
+.env.staging
+# Explicitly protect the local secrets file
+apps/web/.env.local
+services/ai-workers/.env
 
 # Logs
 *.log
@@ -29,3 +36,6 @@ Thumbs.db
 
 # Git worktrees
 .worktrees/
+
+.vercel
+.env*

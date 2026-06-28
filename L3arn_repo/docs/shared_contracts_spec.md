@@ -231,6 +231,28 @@ if (envelope.result.status === "validated") {
 
 ---
 
+## Contract 10: Session Contract (`session.schema.ts`)
+
+**What it covers:** The `POST /api/sessions/start` request/response contract for parent-initiated child sessions.
+
+**Key design decisions grounded in ADRs:**
+
+| Schema | ADR | Rule |
+|--------|-----|------|
+| `StartSessionRequestSchema` | ADR-031 | Parent must own the child profile. Ownership check enforced by Railway (not client). |
+| `LaunchModeSchema` | ADR-031 | `"parent_launched"` only in Phase 0. `"trusted_device_pin"` is scaffolded; returns 400 if requested. |
+| `StartSessionResponseSchema.childSessionToken` | ADR-031 | Token is OPAQUE — `crypto.randomUUID()`. MUST NOT equal `childProfileId`. |
+| `AcademyIdentityResponseSchema` | ADR-007 | Response carries display name + house only. No legal name, no PII. |
+
+**Token rules:**
+- `childSessionToken` is stored in `child_sessions.session_token` (TEXT NOT NULL UNIQUE)
+- Default session duration: 2 hours for `parent_launched`
+- Railway rejects any API call where `expires_at < now()` OR `revoked_at IS NOT NULL`
+
+**Dependency:** `session.schema.ts` has no imports from other schema files — fully self-contained.
+
+---
+
 ## Adding New Schemas
 
 1. Ground every field in an approved ADR or the MASTER\_HANDOFF data model.

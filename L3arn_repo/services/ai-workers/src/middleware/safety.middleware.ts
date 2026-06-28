@@ -9,7 +9,7 @@
  *     1. validateAIOutputEnvelope(raw) → ZodError if malformed
  *     2. checkCompanionBoundaries(content, childPermissions)
  *     3. If violations: determineSeverity → block if S2+ → createModerationEvent
- *        → trigger kill switch if S4 → return safe fallback to client
+ *        → trigger kill switch if S4 → trigger containment if S3/S4 → return safe fallback
  *
  *   Mission output:
  *     1. validateAIOutputEnvelope(raw) → ZodError if malformed
@@ -21,6 +21,20 @@
  *
  * Logging: console.log (structured JSON) for Phase 0.
  * Phase 2: replace with structured logging service + Supabase audit write.
+ *
+ * ──────────────────────────────────────────────────────────────────────────────
+ * PHASE 1 INJECTION POINT: SupabaseSafetyContainment
+ * ──────────────────────────────────────────────────────────────────────────────
+ *
+ * The safetyContainment instance is constructed below using an environment
+ * flag: NODE_ENV === "production" AND SUPABASE_SERVICE_ROLE_KEY is set.
+ *
+ * Dev/test:     NoopSafetyContainment (logs only, no DB write)
+ * Production:   SupabaseSafetyContainment (logs + writes to DB)
+ *               Requires: SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY in Railway env
+ *
+ * Phase 2 TODO: replace this conditional with a proper DI container or
+ * factory that supports testing SupabaseSafetyContainment without NODE_ENV.
  *
  * OPEN QUESTION: This middleware currently receives childPermissions and
  * parentBlockedTopics from request context (res.locals). The caller (route handler
@@ -49,13 +63,80 @@ import {
   type BoundaryViolation,
   type SafetyContext,
   NoopKillSwitch,
+  NoopSafetyContainment,
+  SupabaseSafetyContainment,
+  type SafetyContainmentTrigger,
+  type SupabaseServiceClient,
 } from "@l3arn/safety";
 import type { KillSwitchTrigger } from "@l3arn/safety";
 
 // ─── Kill Switch Instance ─────────────────────────────────────────────────────
-// Phase 0: NoopKillSwitch. Phase 2: inject real implementation.
-// In production, this would be provided via dependency injection, not constructed here.
+// Phase 0/1: NoopKillSwitch. Phase 2: inject real implementation via DI.
+// The kill switch is for platform-wide S4 actions (founder-invoked or critical automated).
 const killSwitch: KillSwitchTrigger = new NoopKillSwitch();
+
+// ─── Safety Containment Injection Point ──────────────────────────────────────
+//
+// Phase 1: SupabaseSafetyContainment is wired in production when the required
+// env vars are present. In dev/test, NoopSafetyContainment is used.
+//
+// The Supabase client is constructed here (not imported from a shared module)
+// because the safety package must remain free of Supabase SDK dependencies.
+// The client shape satisfies the SupabaseServiceClient interface exported
+// by the safety package.
+//
+// Required Railway env vars for production containment:
+//   SUPABASE_URL              — Supabase project URL
+//   SUPABASE_SERVICE_ROLE_KEY — service role key (not anon key)
+//
+// Phase 2 TODO:
+//   - Replace inline client construction with a proper DI factory
+//   - Add FOUNDER_ALERT_EMAIL notification on S3/S4 containment (see .env.example)
+//   - Support test mode (injected mock client) without NODE_ENV check
+
+function buildSafetyContainment(): SafetyContainmentTrigger {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (isProduction && supabaseUrl && serviceRoleKey) {
+    // Production: wire real SupabaseSafetyContainment
+    // We construct a minimal Supabase-compatible client inline to avoid
+    // importing @supabase/supabase-js in the safety package itself.
+    // The createClient call here is in ai-workers (infrastructure), not in @l3arn/safety.
+    try {
+      // Lazy require to keep the module load fast in dev
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { createClient } = require("@supabase/supabase-js") as {
+        createClient: (url: string, key: string, opts?: Record<string, unknown>) => SupabaseServiceClient;
+      };
+      const supabaseClient = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      logSafetyEvent("info", "safety-middleware: SupabaseSafetyContainment wired for production", {});
+      return new SupabaseSafetyContainment(supabaseClient);
+    } catch (err) {
+      // If the Supabase client fails to construct, fall back to Noop and log CRITICAL.
+      // Never let a containment setup error leave the platform unprotected silently.
+      logSafetyEvent("error", "safety-middleware: CRITICAL — SupabaseSafetyContainment failed to init, falling back to Noop", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return new NoopSafetyContainment();
+    }
+  }
+
+  // Dev/test: Noop (logs only, no DB write)
+  if (isProduction) {
+    logSafetyEvent("warn", "safety-middleware: production mode but SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set — using NoopSafetyContainment", {});
+  } else {
+    logSafetyEvent("info", "safety-middleware: dev mode — using NoopSafetyContainment", {});
+  }
+  return new NoopSafetyContainment();
+}
+
+// Constructed once at module load. In production with Supabase env vars set,
+// this will be a SupabaseSafetyContainment. Otherwise, a Noop.
+const safetyContainment: SafetyContainmentTrigger = buildSafetyContainment();
 
 // ─── Safe Fallback Response ───────────────────────────────────────────────────
 // What the client sees when AI output is blocked.
@@ -214,7 +295,7 @@ export async function safetyMiddleware(
       });
     }
 
-    // Trigger kill switch for S4 events
+    // Trigger kill switch for S4 events (platform-level halt)
     if (shouldTriggerKillSwitch(severity)) {
       await killSwitch.trigger({
         severity: "S4",
@@ -222,6 +303,20 @@ export async function safetyMiddleware(
         sessionId,
         reason: violations.map((v) => v.rule).join("; "),
         triggeredAt: new Date().toISOString(),
+      });
+    }
+
+    // Trigger safety containment for S3/S4 events (record + Phase 2: enforce)
+    // S3 and S4 both require automated containment + founder review per ADR-047 amendment.
+    if (severity === "S3" || severity === "S4") {
+      await safetyContainment.contain({
+        severity: severity as "S3" | "S4",
+        actions: buildContainmentActionsForSeverity(severity as "S3" | "S4"),
+        childProfileId,
+        sessionId,
+        reason: violations.map((v) => v.rule).join("; "),
+        triggeredAt: new Date().toISOString(),
+        requiresFounderReview: true,
       });
     }
 
@@ -258,6 +353,22 @@ function extractContentString(data: unknown): string {
     }
   }
   return String(data ?? "");
+}
+
+/**
+ * Build default containment actions for a given severity.
+ * Phase 1: conservative defaults — block content always; end session for S4.
+ * Phase 2 TODO: make containment actions configurable per rule/category.
+ */
+function buildContainmentActionsForSeverity(
+  severity: "S3" | "S4",
+): import("@l3arn/safety").SafetyContainmentAction[] {
+  if (severity === "S4") {
+    // S4 = CSAM/explicit self-harm: block content + end session (most severe)
+    return ["block-content", "end-session"];
+  }
+  // S3 = high concern: block content + restrict AI to guided mode
+  return ["block-content", "force-guided-ai"];
 }
 
 /**

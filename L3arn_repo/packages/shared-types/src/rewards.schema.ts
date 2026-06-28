@@ -24,6 +24,7 @@ export const MoolahWalletSchema = z.object({
   id: z.string().uuid(),
   childProfileId: z.string().uuid(),
   balance: z.number().int().nonnegative(),
+  lifetimeEarned: z.number().int().nonnegative().optional(),
   updatedAt: z.string().datetime(),
 });
 export type MoolahWallet = z.infer<typeof MoolahWalletSchema>;
@@ -50,6 +51,7 @@ export const MoolahLedgerEntrySchema = z.object({
   delta: z.number().int(),               // positive = earned, negative = spent
   reason: MoolahReasonSchema,
   referenceId: z.string().optional(),    // missionAttemptId, eventId, itemId, etc.
+  idempotencyKey: z.string().optional(), // prevents duplicate reward events; maps to moolah_ledger.idempotency_key
   occurredAt: z.string().datetime(),
 });
 export type MoolahLedgerEntry = z.infer<typeof MoolahLedgerEntrySchema>;
@@ -161,6 +163,36 @@ export const HousePointsRecordSchema = z.object({
   occurredAt: z.string().datetime(),
 });
 export type HousePointsRecord = z.infer<typeof HousePointsRecordSchema>;
+
+// ─── ChildBadge ───────────────────────────────────────────────────────────────
+// Maps the child_badges table — a child's earned badge records.
+// Alias for BadgeAwardSchema to satisfy the spec contract name (ChildBadge).
+// Maps to: child_badges table in Migration 004
+
+export const ChildBadgeSchema = z.object({
+  id: z.string().uuid(),
+  childProfileId: z.string().uuid(),
+  badgeId: z.string().uuid(),
+  awardedAt: z.string().datetime(),
+  sourceId: z.string().uuid().optional(),  // mission_attempts.id, mastery_records.id, etc.
+});
+export type ChildBadge = z.infer<typeof ChildBadgeSchema>;
+
+// ─── XPEvent (alias for spec contract name) ──────────────────────────────────
+// XpEventSchema / XpEvent are the canonical internal names.
+// XPEventSchema / XPEvent are the spec-required export names.
+// Both are exported to avoid duplication.
+
+export const XPEventSchema = XpEventSchema;
+export type XPEvent = XpEvent;
+
+// ─── HousePointEvent (alias for spec contract name) ───────────────────────────
+// HousePointsRecordSchema is the canonical internal name.
+// HousePointEventSchema / HousePointEvent are the spec-required export names.
+// Both are exported.
+
+export const HousePointEventSchema = HousePointsRecordSchema;
+export type HousePointEvent = HousePointsRecord;
 
 // ─── House Leaderboard Snapshot ───────────────────────────────────────────────
 // Periodic snapshots of House standings. Drives the Academy's visual

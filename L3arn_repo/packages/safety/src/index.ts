@@ -55,10 +55,21 @@ export {
   type SafetyContext,
 } from "./severity/safety-severity.helper";
 
-// ─── Kill Switch ─────────────────────────────────────────────────────────────
+// ─── Kill Switch ──────────────────────────────────────────────────────────────
 export {
   NoopKillSwitch,
   type KillSwitchTrigger,
   type KillSwitchEvent,
 } from "./kill-switch/kill-switch.interface";
 export * from "./kill-switch/safety-containment.interface";
+
+// ─── Supabase Safety Containment (Phase 1+ production implementation) ────────
+// Inject in production; use NoopSafetyContainment in dev/test.
+// The safety package does NOT import @supabase/supabase-js directly.
+// The infrastructure layer constructs the real client and injects it.
+export {
+  SupabaseSafetyContainment,
+  type SupabaseServiceClient,
+  type SupabaseTableClient,
+  type SupabaseInsertResult,
+} from "./kill-switch/supabase-safety-containment";

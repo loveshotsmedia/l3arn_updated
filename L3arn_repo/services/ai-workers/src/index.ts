@@ -23,6 +23,8 @@
 import express, { type Express } from "express";
 import { missionRouter } from "./routes/mission.route";
 import { moderationRouter } from "./routes/moderation.route";
+import { createReportsRouter } from "./reports/unified-first-learning-map";
+import { sessionsRouter } from "./routes/sessions.route";
 
 const app: Express = express();
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
@@ -53,6 +55,8 @@ app.get("/health", (_req, res) => {
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/api/missions", missionRouter);
 app.use("/api/safety", moderationRouter);
+app.use("/api/reports", createReportsRouter());
+app.use("/api/sessions", sessionsRouter);
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────
 app.use((_req, res) => {
@@ -85,6 +89,8 @@ app.listen(PORT, () => {
   console.log(`[ai-workers] Mission compile: POST /api/missions/compile`);
   console.log(`[ai-workers] Safety status: GET /api/safety/status`);
   console.log(`[ai-workers] Safety check (internal): POST /api/safety/check`);
+  console.log(`[ai-workers] First Learning Map: POST /api/reports/first-learning-map`);
+  console.log(`[ai-workers] Session start: POST /api/sessions/start`);
 });
 
 export default app;

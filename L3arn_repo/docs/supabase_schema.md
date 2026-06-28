@@ -426,7 +426,7 @@ _Individual skills within a domain. Grade-banded. Mission Compiler uses these to
 |--------|------|-----------|-------|
 | `id` | `uuid` | PK | — |
 | `domain_id` | `uuid` | NOT NULL, FK → mastery_domains.id | — |
-| `code` | `text` | NOT NULL, UNIQUE, `^[A-Z][A-Z0-9_.]{1,49}$` | — |
+| `code` | `text` | NOT NULL, UNIQUE, `^[A-Z][A-Z0-9_.]{1,49}$` | Uppercase DB key; app layer uses lowercase canonical key |
 | `name` | `text` | NOT NULL, 1–200 chars | — |
 | `description` | `text` | NOT NULL | — |
 | `grade_band_min` | `grade_level` | NOT NULL | Lowest appropriate grade |
@@ -436,6 +436,18 @@ _Individual skills within a domain. Grade-banded. Mission Compiler uses these to
 | `parent_friendly_name` | `text` | NOT NULL | Plain language for parent reports |
 | `is_ai_literacy` | `boolean` | NOT NULL, DEFAULT false | AI Literacy overlay flag |
 | `display_order` / `is_active` / `version` | — | standard | — |
+
+**Mission 001 canonical skills (OQ-A10-003 resolved, seeded in Migration 002):**
+
+| DB `code` | App canonical key (`masterySkillTarget`) | Domain | Description |
+|-----------|------------------------------------------|--------|-------------|
+| `AI_LITERACY.VERIFY_AI_OUTPUT` | `ai_literacy.verify_ai_output` | AI Literacy | Student can verify AI output is correct and identify when AI makes mistakes |
+| `LOGIC.SEQUENCE_STEPS` | `logic.sequence_steps` | Logic / Sequencing | Student can order steps in a logical sequence to accomplish a goal |
+| `COMPREHENSION.FOLLOW_MULTISTEP_INSTRUCTIONS` | `comprehension.follow_multistep_instructions` | Reading/Listening | Student can follow multi-step instructions to completion |
+| `REASONING.USE_EVIDENCE_TO_DECIDE` | `reasoning.use_evidence_to_decide` | Evidence-Based Reasoning | Student uses evidence (not guessing) to make decisions |
+| `LEARNER_CALIBRATION.INITIAL_PROFILE` | `learner.calibration_initial_profile` | Learner Calibration | Initial calibration of learning style, cognitive load, and AI readiness |
+
+The Mission Compiler resolves `masterySkillTarget` (lowercase) to `mastery_skill.id` at runtime by looking up `UPPER(key)` → `mastery_skills.code`.
 
 ---
 
