@@ -11,9 +11,18 @@
  *
  * Dashboard sections:
  *   1. Enrollment Overview       — counts only, no PII
- *   2. Safety Escalations Queue  — pending-review S3/S4 events
- *   3. Recent Audit Log          — last 50 entries
- *   4. Safety Status             — link to /api/safety/status + Railway logs
+ *   2. Active Child Sessions     — live (not revoked/ended/expired) sessions   [Phase C]
+ *   3. Mission Activity          — Mission 001 starts / completions            [Phase C]
+ *   4. AI Fallback Events        — runs served by the safe static fallback     [Phase C]
+ *   5. Reward Ledger Health      — moolah/xp/badge write counts + recent feed  [Phase C]
+ *   6. Evidence & Reports        — evidence / mastery / First Learning Maps     [Phase C]
+ *   7. Safety Escalations Queue  — pending-review S3/S4 events
+ *   8. Recent Audit Log          — last 50 entries
+ *   9. Safety Status             — link to /api/safety/status + Railway logs
+ *
+ * Phase C panels (2–6) are additive, read-only, de-identified observability over
+ * the data Hero Slice Phases A/B produce. Their data layer (testable, takes a
+ * Supabase client) lives in apps/web/src/lib/mission-control-data.ts.
  *
  * Privacy invariants (NON-NEGOTIABLE):
  *   - No child legal name anywhere on this page
@@ -36,6 +45,13 @@
  */
 
 import { createSupabaseServiceRoleClient } from "@/lib/supabase-server";
+import {
+  fetchActiveSessions,
+  fetchMissionActivity,
+  fetchAiFallbackEvents,
+  fetchRewardLedgerHealth,
+  fetchEvidenceReporting,
+} from "@/lib/mission-control-data";
 import { ReviewEscalationForm } from "./ReviewEscalationForm";
 
 // ─── Data Shapes ──────────────────────────────────────────────────────────────
@@ -232,16 +248,80 @@ const statCardStyle: React.CSSProperties = {
   minWidth: "140px",
 };
 
+// Shared cell/section styles for the Phase C operational panels.
+const monoTdStyle: React.CSSProperties = {
+  ...tdStyle,
+  fontFamily: "monospace",
+  fontSize: "11px",
+  color: "#6b7280",
+};
+
+const dateTdStyle: React.CSSProperties = {
+  ...tdStyle,
+  fontSize: "11px",
+  color: "#9ca3af",
+  whiteSpace: "nowrap",
+};
+
+const emptyStyle: React.CSSProperties = {
+  color: "#4b5563",
+  fontSize: "13px",
+  fontStyle: "italic",
+};
+
+const sectionDescStyle: React.CSSProperties = {
+  fontSize: "12px",
+  color: "#4b5563",
+  marginBottom: "16px",
+};
+
+// Single stat tile (value + caption). Used by the Phase C panels.
+function StatCard({
+  value,
+  label,
+  color,
+}: {
+  value: React.ReactNode;
+  label: string;
+  color: string;
+}) {
+  return (
+    <div style={statCardStyle}>
+      <div style={{ fontSize: "28px", fontWeight: 700, color }}>{value}</div>
+      <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page Component ───────────────────────────────────────────────────────────
 
 export default async function MissionControlPage() {
+  // One service-role client shared by the Phase C operational fetchers
+  // (the existing fetchers create their own internally — left unchanged).
+  const serviceClient = createSupabaseServiceRoleClient();
+
   // Fetch all dashboard data in parallel using service_role
-  const [enrollmentCounts, pendingEscalations, recentAuditLog] =
-    await Promise.all([
-      fetchEnrollmentCounts(),
-      fetchPendingEscalations(),
-      fetchRecentAuditLog(),
-    ]);
+  const [
+    enrollmentCounts,
+    activeSessions,
+    missionActivity,
+    aiFallback,
+    rewardLedger,
+    evidenceReporting,
+    pendingEscalations,
+    recentAuditLog,
+  ] = await Promise.all([
+    fetchEnrollmentCounts(),
+    fetchActiveSessions(serviceClient),
+    fetchMissionActivity(serviceClient),
+    fetchAiFallbackEvents(serviceClient),
+    fetchRewardLedgerHealth(serviceClient),
+    fetchEvidenceReporting(serviceClient),
+    fetchPendingEscalations(),
+    fetchRecentAuditLog(),
+  ]);
 
   // Railway AI workers base URL for the safety status link
   const railwayBaseUrl =
@@ -304,9 +384,223 @@ export default async function MissionControlPage() {
         </div>
       </section>
 
-      {/* ── Section 2: Safety Escalations Queue ── */}
+      {/* ── Section 2: Active Child Sessions ── */}
+      <section style={sectionStyle} aria-label="Active Child Sessions">
+        <h2 style={sectionTitleStyle}>2. Active Child Sessions</h2>
+        <p style={sectionDescStyle}>
+          Live sessions — not revoked, not ended, not yet expired. UUIDs only;
+          no child legal name shown.
+        </p>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
+          <StatCard value={activeSessions.activeCount} label="Active Now" color="#34d399" />
+        </div>
+        {activeSessions.recent.length === 0 ? (
+          <p style={emptyStyle}>No active sessions.</p>
+        ) : (
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Session ID</th>
+                <th style={thStyle}>Child ID</th>
+                <th style={thStyle}>Launch Mode</th>
+                <th style={thStyle}>Started</th>
+                <th style={thStyle}>Expires</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeSessions.recent.map((row) => (
+                <tr key={row.id}>
+                  <td style={monoTdStyle} title={row.id}>{truncateUUID(row.id)}</td>
+                  <td style={monoTdStyle} title={row.child_profile_id}>
+                    {truncateUUID(row.child_profile_id)}
+                  </td>
+                  <td style={{ ...tdStyle, color: "#9ca3af", fontSize: "12px" }}>
+                    {row.launch_mode}
+                  </td>
+                  <td style={dateTdStyle}>{formatDateTime(row.started_at)}</td>
+                  <td style={dateTdStyle}>{formatDateTime(row.expires_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* ── Section 3: Mission Activity ── */}
+      <section style={sectionStyle} aria-label="Mission Activity">
+        <h2 style={sectionTitleStyle}>3. Mission Activity</h2>
+        <p style={sectionDescStyle}>
+          Mission 001 starts and completions. A completion is a mission_attempt
+          with a non-null completed_at.
+        </p>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
+          <StatCard value={missionActivity.totalStarted} label="Started" color="#60a5fa" />
+          <StatCard value={missionActivity.totalCompleted} label="Completed" color="#34d399" />
+          <StatCard value={`${missionActivity.completionRatePct}%`} label="Completion Rate" color="#f59e0b" />
+        </div>
+        {missionActivity.recent.length === 0 ? (
+          <p style={emptyStyle}>No mission attempts yet.</p>
+        ) : (
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Mission</th>
+                <th style={thStyle}>Status</th>
+                <th style={thStyle}>Source</th>
+                <th style={thStyle}>Started</th>
+                <th style={thStyle}>Completed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {missionActivity.recent.map((row) => (
+                <tr key={row.id}>
+                  <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: "12px" }}>
+                    {row.mission_id}
+                  </td>
+                  <td style={{ ...tdStyle, color: "#9ca3af", fontSize: "12px" }}>{row.status}</td>
+                  <td style={{ ...tdStyle, color: "#9ca3af", fontSize: "12px" }}>
+                    {row.content_source ?? "—"}
+                  </td>
+                  <td style={dateTdStyle}>{formatDateTime(row.started_at)}</td>
+                  <td style={dateTdStyle}>
+                    {row.completed_at ? formatDateTime(row.completed_at) : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* ── Section 4: AI Fallback Events ── */}
+      <section style={sectionStyle} aria-label="AI Fallback Events">
+        <h2 style={sectionTitleStyle}>4. AI Fallback Events</h2>
+        <p style={sectionDescStyle}>
+          Runs where AI content failed validation or the model was unavailable, so
+          the safe static mission was served (content_source = &lsquo;fallback&rsquo;).
+          A non-zero rate is a signal, not an error.
+        </p>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
+          <StatCard value={aiFallback.fallbackCount} label="Fallback Runs" color="#ef4444" />
+          <StatCard value={aiFallback.aiCount} label="AI-Served Runs" color="#34d399" />
+          <StatCard value={`${aiFallback.fallbackRatePct}%`} label="Fallback Rate" color="#f59e0b" />
+        </div>
+        {aiFallback.recent.length === 0 ? (
+          <p style={emptyStyle}>No fallback events.</p>
+        ) : (
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Mission</th>
+                <th style={thStyle}>Status</th>
+                <th style={thStyle}>Started</th>
+              </tr>
+            </thead>
+            <tbody>
+              {aiFallback.recent.map((row) => (
+                <tr key={row.id}>
+                  <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: "12px" }}>
+                    {row.mission_id}
+                  </td>
+                  <td style={{ ...tdStyle, color: "#9ca3af", fontSize: "12px" }}>{row.status}</td>
+                  <td style={dateTdStyle}>{formatDateTime(row.started_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* ── Section 5: Reward Ledger Health ── */}
+      <section style={sectionStyle} aria-label="Reward Ledger Health">
+        <h2 style={sectionTitleStyle}>5. Reward Ledger Health</h2>
+        <p style={sectionDescStyle}>
+          Is the reward pipeline writing rows? Counts across the append-only reward
+          tables plus the most recent ledger entries. Aggregates only — no per-child
+          identity beyond UUID.
+        </p>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
+          <StatCard value={rewardLedger.ledgerEntryCount} label="Moolah Ledger Entries" color="#60a5fa" />
+          <StatCard value={rewardLedger.xpEventCount} label="XP Events" color="#a78bfa" />
+          <StatCard value={rewardLedger.badgesAwardedCount} label="Badges Awarded" color="#f59e0b" />
+        </div>
+        {rewardLedger.recent.length === 0 ? (
+          <p style={emptyStyle}>No ledger entries yet.</p>
+        ) : (
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Child ID</th>
+                <th style={thStyle}>Amount</th>
+                <th style={thStyle}>Source</th>
+                <th style={thStyle}>Reason</th>
+                <th style={thStyle}>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rewardLedger.recent.map((row) => (
+                <tr key={row.id}>
+                  <td style={monoTdStyle} title={row.child_profile_id}>
+                    {truncateUUID(row.child_profile_id)}
+                  </td>
+                  <td style={{ ...tdStyle, fontWeight: 700, color: row.amount >= 0 ? "#34d399" : "#ef4444" }}>
+                    {row.amount >= 0 ? `+${row.amount}` : row.amount}
+                  </td>
+                  <td style={{ ...tdStyle, color: "#9ca3af", fontSize: "12px" }}>{row.source_type}</td>
+                  <td style={{ ...tdStyle, fontSize: "12px", maxWidth: "260px" }}>{row.reason}</td>
+                  <td style={dateTdStyle}>{formatDateTime(row.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* ── Section 6: Evidence & Reports ── */}
+      <section style={sectionStyle} aria-label="Evidence and Reports">
+        <h2 style={sectionTitleStyle}>6. Evidence &amp; Reports</h2>
+        <p style={sectionDescStyle}>
+          Proof-of-learning pipeline: evidence events captured, mastery records
+          written, and parent reports (First Learning Maps) generated. content_json
+          is never read here.
+        </p>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
+          <StatCard value={evidenceReporting.evidenceEventCount} label="Evidence Events" color="#60a5fa" />
+          <StatCard value={evidenceReporting.masteryRecordCount} label="Mastery Records" color="#34d399" />
+          <StatCard value={evidenceReporting.firstLearningMapCount} label="First Learning Maps" color="#a78bfa" />
+          <StatCard value={evidenceReporting.reportCount} label="Total Reports" color="#f59e0b" />
+        </div>
+        {evidenceReporting.recentReports.length === 0 ? (
+          <p style={emptyStyle}>No parent reports yet.</p>
+        ) : (
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Report ID</th>
+                <th style={thStyle}>Type</th>
+                <th style={thStyle}>Child ID</th>
+                <th style={thStyle}>Generated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {evidenceReporting.recentReports.map((row) => (
+                <tr key={row.id}>
+                  <td style={monoTdStyle} title={row.id}>{truncateUUID(row.id)}</td>
+                  <td style={{ ...tdStyle, fontSize: "12px", color: "#d1d5db" }}>{row.report_type}</td>
+                  <td style={monoTdStyle} title={row.child_profile_id}>
+                    {truncateUUID(row.child_profile_id)}
+                  </td>
+                  <td style={dateTdStyle}>{formatDateTime(row.generated_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* ── Section 7: Safety Escalations Queue ── */}
       <section style={sectionStyle} aria-label="Safety Escalations Queue">
-        <h2 style={sectionTitleStyle}>2. Safety Escalations Queue</h2>
+        <h2 style={sectionTitleStyle}>7. Safety Escalations Queue</h2>
         <p style={{ fontSize: "12px", color: "#4b5563", marginBottom: "16px" }}>
           S3/S4 events pending founder review. De-identified — no child legal name,
           parent email, or household address shown.
@@ -371,9 +665,9 @@ export default async function MissionControlPage() {
         )}
       </section>
 
-      {/* ── Section 3: Recent Audit Log ── */}
+      {/* ── Section 8: Recent Audit Log ── */}
       <section style={sectionStyle} aria-label="Recent Audit Log">
-        <h2 style={sectionTitleStyle}>3. Recent Audit Log</h2>
+        <h2 style={sectionTitleStyle}>8. Recent Audit Log</h2>
         <p style={{ fontSize: "12px", color: "#4b5563", marginBottom: "16px" }}>
           Last 50 entries ordered by time (newest first).
           Detailed payloads are available via the Supabase dashboard only —
@@ -423,9 +717,9 @@ export default async function MissionControlPage() {
         )}
       </section>
 
-      {/* ── Section 4: Safety Status ── */}
+      {/* ── Section 9: Safety Status ── */}
       <section style={sectionStyle} aria-label="Safety Status">
-        <h2 style={sectionTitleStyle}>4. Safety Status</h2>
+        <h2 style={sectionTitleStyle}>9. Safety Status</h2>
         <p style={{ fontSize: "12px", color: "#4b5563", marginBottom: "16px" }}>
           Current safety subsystem status from the Railway AI workers service.
         </p>
