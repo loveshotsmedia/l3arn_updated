@@ -10,7 +10,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:acceptance": "node scripts/hero-slice-acceptance.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.26.0",
