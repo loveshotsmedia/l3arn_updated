@@ -2,65 +2,118 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { verifySession, type VerifiedIdentity } from "../../../lib/student-session";
+
+// ── Child entry gate (ADR-031 / OQ-A8-001) ───────────────────────────────────
+// This page MUST verify the childSessionToken against Railway before rendering
+// any Academy context. localStorage is NEVER the identity authority.
+//
+//   1. Read childSessionToken from ?token=… (set by the parent launch link)
+//   2. POST /api/sessions/verify (Authorization: Bearer <token>)
+//   3. Render the Academy identity ONLY on a 200 verify
+//   4. Fail closed on missing / invalid / expired / revoked token
+//
+// Dev escape hatch: when NODE_ENV !== "production" AND no token is present, the
+// page falls back to localStorage identity for UI development, behind a loud
+// banner. This path never runs in production.
+// ──────────────────────────────────────────────────────────────────────────────
+
+type Status = "verifying" | "verified" | "error" | "dev-fallback";
 
 function EnterAcademyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // ── OQ-A8-001: Production token flow (not yet wired — Phase 0) ──────────────
-  // In production, this page should:
-  //   1. Read childSessionToken from URL param (?token=<token>) or secure cookie
-  //      (set by parent dashboard after POST /api/sessions/start succeeds)
-  //   2. Call GET /api/sessions/verify?token=<token> to validate the session
-  //      and retrieve academy identity from Railway
-  //   3. Never trust localStorage as identity authority
-  //   4. Reject (redirect to /student/enter-error) if token is missing, expired,
-  //      or revoked
-  // Phase 0: localStorage read retained for UI development only.
-  // ────────────────────────────────────────────────────────────────────────────
-
-  // Read token from URL param if present — store in state for Phase 1 wiring.
-  // Currently unused beyond logging; does not alter the localStorage flow.
-  const [sessionToken] = useState<string | null>(
-    searchParams.get("token"),
-  );
-
-  // Phase 0: identity from localStorage (UI dev only)
-  const displayName =
-    typeof window !== "undefined"
-      ? (localStorage.getItem("l3arn_display_name") ?? "Explorer")
-      : "Explorer";
-  const academyName =
-    typeof window !== "undefined"
-      ? (localStorage.getItem("l3arn_academy_name") ?? "The L3ARN Academy")
-      : "The L3ARN Academy";
+  const [status, setStatus] = useState<Status>("verifying");
+  const [identity, setIdentity] = useState<VerifiedIdentity | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [devName, setDevName] = useState<string>("Explorer");
+  const [devAcademy, setDevAcademy] = useState<string>("The L3ARN Academy");
 
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn(
-        "[L3ARN DEV] /student/enter is using localStorage for identity. " +
-        "Backend child session verification (ADR-031 / OQ-A8-001) is required before Sprint 2 launch.",
-      );
+    const token = searchParams.get("token");
+    const isProduction = process.env.NODE_ENV === "production";
 
-      if (sessionToken) {
-        // Token is present — Phase 1 will verify this against Railway API.
-        // For now, just log it so developers can confirm the URL param flows through.
-        console.info(
-          "[L3ARN DEV] childSessionToken present in URL — Phase 1 will verify this token " +
-          "against GET /api/sessions/verify before granting entry.",
-          { tokenPrefix: sessionToken.slice(0, 8) + "…" },
+    if (!token) {
+      // No token. In production this is a hard failure (fail closed).
+      if (isProduction) {
+        setErrorMessage(
+          "This Academy link is missing its session. Ask a parent to start a new session from their dashboard.",
         );
-      } else {
-        console.info(
-          "[L3ARN DEV] No childSessionToken in URL — identity sourced from localStorage (Phase 0 only).",
-        );
+        setStatus("error");
+        return;
       }
+      // Dev only: allow localStorage-driven UI development behind a banner.
+      setDevName(localStorage.getItem("l3arn_display_name") ?? "Explorer");
+      setDevAcademy(localStorage.getItem("l3arn_academy_name") ?? "The L3ARN Academy");
+      setStatus("dev-fallback");
+      return;
     }
-  }, [sessionToken]);
+
+    let cancelled = false;
+    void verifySession(token).then((outcome) => {
+      if (cancelled) return;
+      if (outcome.ok) {
+        setIdentity({
+          displayName: outcome.data.academyIdentity.displayName,
+          house: outcome.data.academyIdentity.house,
+          childSessionId: outcome.data.childSessionId,
+          academyIdentityId: outcome.data.academyIdentityId,
+          expiresAt: outcome.data.expiresAt,
+        });
+        setStatus("verified");
+      } else {
+        setErrorMessage(outcome.message);
+        setStatus("error");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
   function handleEnter() {
-    router.push("/student/academy");
+    // Sequence by sort state: an unsorted child (house = pre_sorting) goes to the
+    // Sorting Ceremony first; a returning child goes straight to the Academy.
+    const house =
+      status === "verified"
+        ? identity?.house
+        : typeof window !== "undefined"
+          ? localStorage.getItem("l3arn_house")
+          : null;
+    const sorted = !!house && house !== "pre_sorting";
+    router.push(sorted ? "/student/academy" : "/student/onboarding/house");
   }
+
+  // ── Verifying ────────────────────────────────────────────────────────────────
+  if (status === "verifying") {
+    return (
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <div style={styles.badge}>Checking your pass…</div>
+          <p style={styles.tagline}>Verifying your session with the Academy.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Invalid / expired / revoked — fail closed ─────────────────────────────────
+  if (status === "error") {
+    return (
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <div style={{ ...styles.badge, ...styles.badgeError }}>Session not valid</div>
+          <h1 style={styles.name}>Can&apos;t enter yet</h1>
+          <p style={styles.tagline}>{errorMessage}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Verified (authoritative) or dev-fallback (non-prod only) ──────────────────
+  const displayName = status === "verified" ? identity?.displayName ?? "Explorer" : devName;
+  const academyName = status === "verified" ? "The L3ARN Academy" : devAcademy;
 
   return (
     <div style={styles.container}>
@@ -68,6 +121,12 @@ function EnterAcademyContent() {
         <div style={styles.badge}>Welcome back</div>
         <h1 style={styles.name}>{displayName}</h1>
         <p style={styles.academy}>{academyName}</p>
+        {status === "dev-fallback" && (
+          <p style={styles.devWarning}>
+            DEV: no session token — identity is from localStorage and is not verified.
+            This path is disabled in production.
+          </p>
+        )}
         <p style={styles.tagline}>Your companions and missions are waiting inside.</p>
         <button style={styles.enterBtn} onClick={handleEnter}>
           Enter the Academy
@@ -109,9 +168,24 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: "0.08em",
     textTransform: "uppercase" as const,
   },
+  badgeError: {
+    background: "rgba(239, 68, 68, 0.15)",
+    border: "1px solid rgba(239, 68, 68, 0.4)",
+    color: "#f87171",
+  },
   name: { fontSize: "2.5rem", fontWeight: 700, color: "#f1f5f9", marginBottom: "0.25rem" },
   academy: { color: "#94a3b8", fontSize: "1rem", marginBottom: "1.5rem" },
   tagline: { color: "#64748b", fontSize: "0.95rem", lineHeight: 1.6, marginBottom: "2rem" },
+  devWarning: {
+    color: "#fbbf24",
+    fontSize: "0.75rem",
+    lineHeight: 1.5,
+    marginBottom: "1.25rem",
+    padding: "0.5rem 0.75rem",
+    borderRadius: "8px",
+    background: "rgba(251, 191, 36, 0.1)",
+    border: "1px solid rgba(251, 191, 36, 0.3)",
+  },
   enterBtn: {
     padding: "0.875rem 2.5rem",
     borderRadius: "10px",

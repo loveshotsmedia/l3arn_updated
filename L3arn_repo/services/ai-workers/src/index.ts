@@ -5,8 +5,14 @@
  * endpoint and future AI worker routes.
  *
  * Environment variables:
- *   PORT              — HTTP port (default: 3001)
- *   ANTHROPIC_API_KEY — Required for Claude API calls via MissionCompiler
+ *   PORT                      — HTTP port (default: 3001)
+ *   ANTHROPIC_API_KEY         — Required for Claude API calls via MissionCompiler
+ *   SUPABASE_URL              — Required for session/student/report routes
+ *   SUPABASE_SERVICE_ROLE_KEY — Required for session/student/report routes
+ *   ALLOWED_ORIGINS           — Comma-separated Vercel origin(s) for CORS.
+ *                               REQUIRED in production (browser→Railway calls
+ *                               fail closed without it). e.g.
+ *                               "https://app.l3arn.example,https://l3arn.vercel.app"
  *
  * Grounded in: ADR-050 (monorepo), architecture.md §3 (Mission Compiler API runs on Railway),
  * CONTEXT.md §5 (Railway = AI orchestration, backend).
@@ -25,6 +31,9 @@ import { missionRouter } from "./routes/mission.route";
 import { moderationRouter } from "./routes/moderation.route";
 import { createReportsRouter } from "./reports/unified-first-learning-map";
 import { sessionsRouter } from "./routes/sessions.route";
+import { studentSessionRouter } from "./routes/student-session.route";
+import { studentMissionRouter } from "./routes/mission-runtime.route";
+import { corsMiddleware } from "./lib/cors";
 
 const app: Express = express();
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
@@ -40,6 +49,8 @@ if (!process.env.ANTHROPIC_API_KEY) {
 }
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
+// CORS first so preflight (OPTIONS) is answered before body parsing / routing.
+app.use(corsMiddleware);
 app.use(express.json({ limit: "1mb" }));
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
@@ -57,6 +68,8 @@ app.use("/api/missions", missionRouter);
 app.use("/api/safety", moderationRouter);
 app.use("/api/reports", createReportsRouter());
 app.use("/api/sessions", sessionsRouter);
+app.use("/api/student/session", studentSessionRouter);
+app.use("/api/student/mission", studentMissionRouter);
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────
 app.use((_req, res) => {
@@ -91,6 +104,11 @@ app.listen(PORT, () => {
   console.log(`[ai-workers] Safety check (internal): POST /api/safety/check`);
   console.log(`[ai-workers] First Learning Map: POST /api/reports/first-learning-map`);
   console.log(`[ai-workers] Session start: POST /api/sessions/start`);
+  console.log(`[ai-workers] Session verify: POST /api/sessions/verify`);
+  console.log(`[ai-workers] Set house: POST /api/student/session/house`);
+  console.log(`[ai-workers] Select companion: POST /api/student/session/companion`);
+  console.log(`[ai-workers] Mission start: POST /api/student/mission/start`);
+  console.log(`[ai-workers] Mission complete: POST /api/student/mission/complete`);
 });
 
 export default app;

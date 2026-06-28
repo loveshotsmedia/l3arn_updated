@@ -59,3 +59,32 @@ export {
   MISSION_001_PROMPT_TEMPLATE_VERSION,
   type Mission001PromptInput,
 } from "./prompts/mission-001.prompt";
+
+// ── Reward rules (pure; backend hydrates into DB writes) ──────────────────────
+export {
+  computeMission001Rewards,
+  MISSION_001_BADGE_KEYS,
+  type Mission001RewardParams,
+  type Mission001RewardResult,
+} from "./rewards/mission-001-reward-rules";
+
+// ── Curriculum: canonical skill-key ↔ DB-code lookup ──────────────────────────
+// NOTE: Mission001SkillKey is the canonical type — exported from here only.
+// (mission-001-evidence-capture also declares it; do NOT re-export it there.)
+export {
+  resolveSkillDbCode,
+  resolveSkillAppKey,
+  SKILL_KEY_MAP,
+  type Mission001SkillKey,
+  type MasterySkillDbCode,
+} from "./curriculum/skill-key-lookup";
+
+// ── Evidence capture spec (static, typed) ─────────────────────────────────────
+export {
+  MISSION_001_EVIDENCE_SPEC,
+  MISSION_001_REQUIRED_SKILL_KEYS,
+  getParentVisibleEvidence,
+  getConsentRequiredEvidence,
+  getEvidenceSpecForTask,
+  type Mission001EvidenceSpec,
+} from "./evidence/mission-001-evidence-capture";

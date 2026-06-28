@@ -36,8 +36,10 @@ import { randomUUID } from "crypto";
 import {
   StartSessionRequestSchema,
   type StartSessionResponse,
+  type VerifySessionResponse,
 } from "@l3arn/shared-types";
 import { validateBody } from "../middleware/validate";
+import { requireChildSession } from "../lib/child-session";
 
 const log = (level: string, msg: string, data?: object) =>
   console.log(
@@ -263,6 +265,87 @@ sessionsRouter.post(
       academyIdentity: {
         displayName: resolvedDisplayName,
         house: resolvedHouse,
+      },
+    };
+
+    res.status(200).json(response);
+  },
+);
+
+/**
+ * POST /api/sessions/verify
+ *
+ * Child entry gate. The student app (/student/enter) MUST call this before
+ * rendering any Academy context.
+ *
+ * Auth: Authorization: Bearer <childSessionToken> (NOT a query param).
+ * Body: none.
+ *
+ * Returns 200 + VerifySessionResponse only for a live, unexpired, unrevoked,
+ * unended session. Otherwise fails closed:
+ *   - 401 SESSION_TOKEN_MISSING / SESSION_INVALID
+ *   - 410 SESSION_EXPIRED / SESSION_REVOKED / SESSION_ENDED
+ *   - 503 SESSION_LOOKUP_FAILED (transient; deny + retryable)
+ *
+ * Grounded in: ADR-031 (child session model), OQ-A8-001 (token verification).
+ */
+sessionsRouter.post(
+  "/verify",
+  async (req: Request, res: Response): Promise<void> => {
+    let supabase;
+    try {
+      supabase = getSupabaseServiceClient();
+    } catch (err) {
+      log("critical", "POST /api/sessions/verify: Supabase client init failed", {
+        error: (err as Error).message,
+      });
+      res.status(503).json({
+        error: "SERVICE_UNAVAILABLE",
+        message: "Session service is not configured. Contact support.",
+      });
+      return;
+    }
+
+    // Fail-closed token validation (shared chokepoint).
+    const session = await requireChildSession(req, res, supabase);
+    if (!session) return; // requireChildSession already wrote the error response
+
+    // Resolve the academy identity bound to this verified session.
+    const { data: academyIdentity, error: identityError } = await supabase
+      .from("academy_identities")
+      .select("display_name, house")
+      .eq("id", session.academy_identity_id)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (identityError || !academyIdentity) {
+      log("error", "POST /api/sessions/verify: academy identity not found for verified session", {
+        childSessionId: session.id,
+        academyIdentityId: session.academy_identity_id,
+        dbError: identityError?.message,
+      });
+      // The session is valid but its identity row is missing/soft-deleted.
+      // Fail closed — do not render Academy context without an identity.
+      res.status(409).json({
+        error: "IDENTITY_UNAVAILABLE",
+        message: "This session's academy identity is unavailable. Ask a parent to start a new session.",
+      });
+      return;
+    }
+
+    const identity = academyIdentity as { display_name: string; house: string };
+
+    log("info", "POST /api/sessions/verify: session verified", {
+      childSessionId: session.id,
+    });
+
+    const response: VerifySessionResponse = {
+      childSessionId: session.id,
+      academyIdentityId: session.academy_identity_id,
+      expiresAt: session.expires_at,
+      academyIdentity: {
+        displayName: identity.display_name,
+        house: identity.house,
       },
     };
 
