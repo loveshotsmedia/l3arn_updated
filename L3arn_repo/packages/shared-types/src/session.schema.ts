@@ -17,6 +17,7 @@
  */
 
 import { z } from "zod";
+import { HouseSchema } from "./identity.schema";
 
 // ─── Launch Mode ──────────────────────────────────────────────────────────────
 
@@ -82,3 +83,95 @@ export const StartSessionResponseSchema = z.object({
 });
 
 export type StartSessionResponse = z.infer<typeof StartSessionResponseSchema>;
+
+// ─── Verify Session (GET-equivalent; child entry gate) ─────────────────────────
+//
+// The child entry page (/student/enter) MUST call this before rendering any
+// Academy context. The opaque childSessionToken travels in the
+// `Authorization: Bearer <token>` header — never in the URL/query (avoids token
+// leakage into logs/referrers) and never trusted from localStorage.
+//
+// Fail-closed contract:
+//   - missing / unknown token  → 401 (invalid session)
+//   - expired / revoked / ended → 410 (session no longer usable)
+//   - any backend/DB error      → treated as invalid (deny), never "allow"
+// Only a 200 with VerifySessionResponse may grant entry.
+
+export const VerifySessionResponseSchema = z.object({
+  /** UUID of the verified child_sessions row. */
+  childSessionId: z.string().uuid(),
+
+  /** UUID of the academy_identities row bound to this session. */
+  academyIdentityId: z.string().uuid(),
+
+  /** ISO 8601 timestamp when this session expires. */
+  expiresAt: z.string().datetime(),
+
+  /** Verified academy identity (display name + house) — the entry authority. */
+  academyIdentity: AcademyIdentityResponseSchema,
+});
+
+export type VerifySessionResponse = z.infer<typeof VerifySessionResponseSchema>;
+
+// ─── Selectable House ──────────────────────────────────────────────────────────
+//
+// HouseSchema (identity.schema) includes "pre_sorting" — the *initial* state.
+// A child can never *select* "pre_sorting"; the Sorting Ceremony only writes one
+// of the four real houses. This is the request-validation surface for that.
+
+export const SelectableHouseSchema = HouseSchema.exclude(["pre_sorting"]);
+export type SelectableHouse = z.infer<typeof SelectableHouseSchema>;
+
+// ─── Set House (Sorting Ceremony result) ───────────────────────────────────────
+//
+// POST /api/student/session/house
+// Auth: Authorization: Bearer <childSessionToken>
+// Writes academy_identities.house (NEVER child_profiles). Backend-mediated only.
+
+export const SetHouseRequestSchema = z.object({
+  /** The house the child chose during the Sorting Ceremony. */
+  house: SelectableHouseSchema,
+});
+
+export type SetHouseRequest = z.infer<typeof SetHouseRequestSchema>;
+
+export const SetHouseResponseSchema = z.object({
+  success: z.literal(true),
+  /** The updated academy identity (so the client can refresh display state). */
+  academyIdentity: AcademyIdentityResponseSchema,
+});
+
+export type SetHouseResponse = z.infer<typeof SetHouseResponseSchema>;
+
+// ─── Select Companion ──────────────────────────────────────────────────────────
+//
+// POST /api/student/session/companion
+// Auth: Authorization: Bearer <childSessionToken>
+// Upserts companion_profiles (one active companion per child). Backend-mediated.
+
+export const SelectCompanionRequestSchema = z.object({
+  /** Stable key used across growth/rewards events, e.g. "comp-001-spark". */
+  companionKey: z.string().min(1).max(64),
+  /** Display name the child sees, e.g. "Spark". */
+  characterName: z.string().min(1).max(48),
+  /** Personality/teaching style descriptor from the chosen template. */
+  characterStyle: z.string().max(64).optional(),
+  /** Teaching tone descriptor from the chosen template. */
+  teachingTone: z.string().max(64).optional(),
+  /** Original template id the selection came from (provenance). */
+  templateId: z.string().max(64).optional(),
+});
+
+export type SelectCompanionRequest = z.infer<typeof SelectCompanionRequestSchema>;
+
+export const SelectCompanionResponseSchema = z.object({
+  success: z.literal(true),
+  companion: z.object({
+    companionKey: z.string(),
+    characterName: z.string(),
+    bondLevel: z.number().int().nonnegative(),
+    isActive: z.boolean(),
+  }),
+});
+
+export type SelectCompanionResponse = z.infer<typeof SelectCompanionResponseSchema>;

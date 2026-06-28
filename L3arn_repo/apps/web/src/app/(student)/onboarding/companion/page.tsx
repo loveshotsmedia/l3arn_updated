@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { selectCompanion } from "../../../../lib/student-session";
 
 interface CompanionTemplate {
   id: string;
@@ -23,18 +24,51 @@ export default function CompanionSelectionPage() {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleConfirm() {
     if (!selected) return;
-    setSaving(true);
     const companion = COMPANION_TEMPLATES.find((c) => c.id === selected);
     if (!companion) return;
-    localStorage.setItem("l3arn_companion_id", companion.id);
-    localStorage.setItem("l3arn_companion_name", companion.name);
-    // Placeholder: INSERT INTO companion_configs (student_id, character_name, ...)
-    console.log("[L3ARN] Placeholder Supabase write — companion_configs:", { character_name: companion.name, character_style: companion.style, teaching_tone: companion.tone, version: 1, active: true });
+    setSaving(true);
+    setError(null);
+
+    // Backend-mediated write (ADR-031): Railway validates the child session
+    // token and upserts companion_profiles. companionKey === template id so
+    // downstream growth/reward events line up.
+    const outcome = await selectCompanion({
+      companionKey: companion.id,
+      characterName: companion.name,
+      characterStyle: companion.style,
+      teachingTone: companion.tone,
+      templateId: companion.id,
+    });
+
+    if (outcome.ok) {
+      setSaving(false);
+      router.push("/student/academy");
+      return;
+    }
+
+    // Dev-only escape hatch — preserve local UI development; never in production.
+    if (
+      outcome.error === "SESSION_TOKEN_MISSING" &&
+      process.env.NODE_ENV !== "production"
+    ) {
+      localStorage.setItem("l3arn_companion_id", companion.id);
+      localStorage.setItem("l3arn_companion_name", companion.name);
+      console.warn(
+        "[L3ARN DEV] No session token — companion NOT persisted to Supabase. " +
+          "Enter via a parent-launched link to test the real write. companion:",
+        companion.id,
+      );
+      setSaving(false);
+      router.push("/student/academy");
+      return;
+    }
+
+    setError(outcome.message);
     setSaving(false);
-    router.push("/student/academy");
   }
 
   return (
@@ -54,6 +88,7 @@ export default function CompanionSelectionPage() {
       <button style={{ ...styles.confirmBtn, opacity: selected ? 1 : 0.4, cursor: selected ? "pointer" : "not-allowed" }} disabled={!selected || saving} onClick={handleConfirm}>
         {saving ? "Bonding..." : selected ? `Choose ${COMPANION_TEMPLATES.find((c) => c.id === selected)?.name}` : "Select a Companion"}
       </button>
+      {error && <p style={styles.error}>{error}</p>}
     </div>
   );
 }
@@ -69,4 +104,5 @@ const styles: Record<string, React.CSSProperties> = {
   companionStyle: { fontSize: "0.78rem", color: "#64748b", margin: 0, fontStyle: "italic" },
   companionDesc: { fontSize: "0.85rem", color: "#94a3b8", margin: 0, lineHeight: 1.5 },
   confirmBtn: { padding: "0.875rem 2.5rem", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #6366f1, #818cf8)", color: "#fff", fontSize: "1rem", fontWeight: 700 },
+  error: { color: "#f87171", fontSize: "0.9rem", marginTop: "1rem", textAlign: "center" as const, maxWidth: "480px" },
 };

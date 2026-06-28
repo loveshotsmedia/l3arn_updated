@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { setHouse } from "../../../../lib/student-session";
 
 type House = "Valkryn" | "Lyrion" | "Novari" | "Cytrex";
 
@@ -25,25 +26,42 @@ export default function HouseSelectionPage() {
   const router = useRouter();
   const [selected, setSelected] = useState<House | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleConfirm() {
     if (!selected) return;
     setSaving(true);
-    // SPRINT 2 TODO: Replace this placeholder with a backend-mediated write.
-    // Required flow:
-    //   1. POST /api/student/session/house  { house: selected }
-    //      with Authorization: Bearer <child-session-token>
-    //   2. Railway validates child_sessions row (ADR-031)
-    //   3. Railway writes academy_identities.house = selected (NOT child_profiles)
-    //   4. Railway returns { success: true, house: selected }
-    // Do NOT write directly to Supabase from the frontend for this.
-    localStorage.setItem("l3arn_house", selected);
-    console.warn(
-      "[L3ARN PLACEHOLDER] House selection not persisted to Supabase. " +
-      "Backend-mediated write required (Sprint 2). house:", selected
-    );
+    setError(null);
+
+    // Backend-mediated write (ADR-031): Railway validates the child session
+    // token and writes academy_identities.house (NEVER child_profiles).
+    const outcome = await setHouse(selected);
+
+    if (outcome.ok) {
+      setSaving(false);
+      router.push("/student/onboarding/companion");
+      return;
+    }
+
+    // Dev-only escape hatch: no session token outside the verified entry flow.
+    // Preserve local UI development behind a loud warning; never in production.
+    if (
+      outcome.error === "SESSION_TOKEN_MISSING" &&
+      process.env.NODE_ENV !== "production"
+    ) {
+      localStorage.setItem("l3arn_house", selected);
+      console.warn(
+        "[L3ARN DEV] No session token — house NOT persisted to Supabase. " +
+          "Enter via a parent-launched link to test the real write. house:",
+        selected,
+      );
+      setSaving(false);
+      router.push("/student/onboarding/companion");
+      return;
+    }
+
+    setError(outcome.message);
     setSaving(false);
-    router.push("/student/onboarding/companion");
   }
 
   return (
@@ -67,6 +85,7 @@ export default function HouseSelectionPage() {
       <button style={{ ...styles.confirmBtn, opacity: selected ? 1 : 0.4, cursor: selected ? "pointer" : "not-allowed" }} disabled={!selected || saving} onClick={handleConfirm}>
         {saving ? "Joining..." : selected ? `Join ${selected}` : "Select a House"}
       </button>
+      {error && <p style={styles.error}>{error}</p>}
     </div>
   );
 }
@@ -82,4 +101,5 @@ const styles: Record<string, React.CSSProperties> = {
   houseMascot: { fontSize: "0.8rem", color: "#64748b", margin: 0, fontStyle: "italic" },
   houseTagline: { fontSize: "0.85rem", color: "#94a3b8", margin: 0, lineHeight: 1.5 },
   confirmBtn: { padding: "0.875rem 2.5rem", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #6366f1, #818cf8)", color: "#fff", fontSize: "1rem", fontWeight: 700 },
+  error: { color: "#f87171", fontSize: "0.9rem", marginTop: "1rem", textAlign: "center" as const, maxWidth: "480px" },
 };
