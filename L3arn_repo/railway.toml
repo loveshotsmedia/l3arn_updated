@@ -2,7 +2,7 @@
 # Build the ai-workers service and all its workspace dependencies.
 # Railway Root Directory must be set to: L3arn_repo
 # (the git repo root is E:/L3ARN — the monorepo lives one level down)
-buildCommand = "npm install -g pnpm && pnpm install --frozen-lockfile && pnpm --filter @l3arn/shared-types build && pnpm --filter @l3arn/safety build && pnpm --filter @l3arn/mission-compiler build && pnpm --filter @l3arn/ai-workers build"
+buildCommand = "npm install -g pnpm@11.7.0 && pnpm install --frozen-lockfile && pnpm --filter @l3arn/shared-types build && pnpm --filter @l3arn/safety build && pnpm --filter @l3arn/mission-compiler build && pnpm --filter @l3arn/ai-workers build"
 
 [deploy]
 startCommand = "node services/ai-workers/dist/index.js"
