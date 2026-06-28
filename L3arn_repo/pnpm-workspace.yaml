@@ -2,6 +2,6 @@ packages:
   - "apps/*"
   - "packages/*"
   - "services/*"
-onlyBuiltDependencies:
-  - esbuild
-  - unrs-resolver
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
