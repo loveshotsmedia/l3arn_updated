@@ -1,27 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { WorldCanvas } from "@l3arn/world-engine";
 import type { SceneKey, WorldEvent } from "@l3arn/world-engine";
+import { getVerifiedIdentity } from "../../../lib/student-session";
+
+type RealHouse = "Valkryn" | "Lyrion" | "Novari" | "Cytrex";
+const REAL_HOUSES: RealHouse[] = ["Valkryn", "Lyrion", "Novari", "Cytrex"];
+const asRealHouse = (h: string | null | undefined): RealHouse | undefined =>
+  h && (REAL_HOUSES as string[]).includes(h) ? (h as RealHouse) : undefined;
 
 export default function AcademyPage() {
   const router = useRouter();
   const [currentScene] = useState<SceneKey>("great-hall");
 
-  const displayName =
-    typeof window !== "undefined"
-      ? (localStorage.getItem("l3arn_display_name") ?? "Explorer")
-      : "Explorer";
-  const house =
-    typeof window !== "undefined"
-      ? ((localStorage.getItem("l3arn_house") ?? undefined) as
-          | "Valkryn"
-          | "Lyrion"
-          | "Novari"
-          | "Cytrex"
-          | undefined)
-      : undefined;
+  // Identity authority is the verified session (sessionStorage), never localStorage.
+  // Loaded in an effect to avoid SSR/hydration mismatch. Dev-only localStorage
+  // fallback keeps local UI work going when entering outside the real flow.
+  const [displayName, setDisplayName] = useState("Explorer");
+  const [house, setHouse] = useState<RealHouse | undefined>(undefined);
+
+  useEffect(() => {
+    const verified = getVerifiedIdentity();
+    if (verified) {
+      setDisplayName(verified.displayName);
+      setHouse(asRealHouse(verified.house));
+      return;
+    }
+    if (process.env.NODE_ENV !== "production") {
+      const dn = localStorage.getItem("l3arn_display_name");
+      if (dn) setDisplayName(dn);
+      setHouse(asRealHouse(localStorage.getItem("l3arn_house")));
+    }
+  }, []);
 
   function handleWorldEvent(event: WorldEvent) {
     switch (event.type) {

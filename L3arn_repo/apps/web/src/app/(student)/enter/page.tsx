@@ -74,7 +74,16 @@ function EnterAcademyContent() {
   }, [searchParams]);
 
   function handleEnter() {
-    router.push("/student/academy");
+    // Sequence by sort state: an unsorted child (house = pre_sorting) goes to the
+    // Sorting Ceremony first; a returning child goes straight to the Academy.
+    const house =
+      status === "verified"
+        ? identity?.house
+        : typeof window !== "undefined"
+          ? localStorage.getItem("l3arn_house")
+          : null;
+    const sorted = !!house && house !== "pre_sorting";
+    router.push(sorted ? "/student/academy" : "/student/onboarding/house");
   }
 
   // ── Verifying ────────────────────────────────────────────────────────────────
