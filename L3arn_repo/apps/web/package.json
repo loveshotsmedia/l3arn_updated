@@ -2,6 +2,7 @@
   "name": "@l3arn/web",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.7.0",
   "engines": {
     "node": ">=18.0.0"
   },
