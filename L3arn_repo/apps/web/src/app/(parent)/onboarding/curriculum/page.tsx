@@ -22,10 +22,19 @@
  * service-role-only. This page does NOT read them directly. It captures
  * parent-expressed preferences in plain text/structured form, which the
  * Mission Compiler API reads when generating missions.
+ *
+ * Agent 8 addition (2026-06-17):
+ *   Accepts a `childId` query parameter for post-onboarding edit flow.
+ *   When `?childId=<uuid>` is present, the page:
+ *     - Uses that childId instead of sessionStorage `onboarding_child_profile_id`
+ *     - Pre-fills grade from the child_profiles row
+ *     - Pre-fills existing curriculum prefs from parent_curriculum_prefs
+ *     - After save, redirects to /parent/reports/[childId] instead of /parent/dashboard
+ *   This enables the "Curriculum settings" link on the dashboard and reports page.
  */
 
-import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
@@ -52,9 +61,14 @@ type FormErrors = Partial<Record<"gradeConfirmed", string>>;
 
 const GRADES = ["K", "1", "2", "3", "4", "5", "6", "7", "8"] as const;
 
-export default function CurriculumSetupPage() {
+function CurriculumSetupContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = getSupabaseBrowserClient();
+
+  // Agent 8: childId from query param (post-onboarding edit) or sessionStorage (onboarding flow)
+  const childIdFromParam = searchParams.get("childId");
+  const isEditMode = !!childIdFromParam;
 
   // Grade pre-filled from session, editable for confirmation
   const [grade, setGrade] = useState<string>("");
@@ -64,6 +78,56 @@ export default function CurriculumSetupPage() {
   const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [prefillLoading, setPrefillLoading] = useState(isEditMode);
+
+  // Agent 8: Pre-fill from existing data when childId param is present
+  useEffect(() => {
+    if (!childIdFromParam) return;
+
+    async function prefillFromChildId() {
+      setPrefillLoading(true);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          router.push("/parent/auth/login");
+          return;
+        }
+
+        // Load grade from child_profiles
+        const { data: profile } = await supabase
+          .from("child_profiles")
+          .select("grade")
+          .eq("id", childIdFromParam)
+          .eq("parent_account_id", session.user.id)
+          .is("deleted_at", null)
+          .single();
+
+        if (profile?.grade) {
+          setGrade(profile.grade as string);
+        }
+
+        // Load existing curriculum prefs if available
+        const { data: prefs } = await supabase
+          .from("parent_curriculum_prefs")
+          .select("focus_subjects")
+          .eq("child_profile_id", childIdFromParam)
+          .maybeSingle();
+
+        if (prefs?.focus_subjects && Array.isArray(prefs.focus_subjects)) {
+          setFocusSubjects(prefs.focus_subjects as string[]);
+        }
+      } catch {
+        // Prefill failure is non-fatal — page still works with empty state
+      } finally {
+        setPrefillLoading(false);
+      }
+    }
+
+    prefillFromChildId();
+  }, [childIdFromParam, router, supabase]);
 
   function toggleSubject(subject: string) {
     setFocusSubjects((prev) =>
@@ -116,7 +180,8 @@ export default function CurriculumSetupPage() {
         return;
       }
 
-      const childProfileId = sessionStorage.getItem("onboarding_child_profile_id");
+      // Agent 8: use childId from query param (edit mode) or sessionStorage (onboarding flow)
+      const childProfileId = childIdFromParam ?? sessionStorage.getItem("onboarding_child_profile_id");
 
       if (!childProfileId) {
         setServerError("Could not find child profile. Please go back to step 2.");
@@ -158,19 +223,23 @@ export default function CurriculumSetupPage() {
 
       if (permError) throw permError;
 
-      // Clear onboarding session
-      sessionStorage.removeItem("onboarding_child_profile_id");
+      if (isEditMode) {
+        // Post-onboarding edit: redirect back to the child's report page
+        router.push(`/parent/reports/${childProfileId}`);
+      } else {
+        // Onboarding flow: clear session token and mark onboarding complete
+        sessionStorage.removeItem("onboarding_child_profile_id");
 
-      // Mark onboarding complete
-      const { error: profileError } = await supabase
-        .from("child_profiles")
-        .update({ onboarding_complete: true })
-        .eq("id", childProfileId)
-        .eq("parent_account_id", session.user.id);
+        const { error: profileError } = await supabase
+          .from("child_profiles")
+          .update({ onboarding_complete: true })
+          .eq("id", childProfileId)
+          .eq("parent_account_id", session.user.id);
 
-      if (profileError) throw profileError;
+        if (profileError) throw profileError;
 
-      router.push("/parent/dashboard");
+        router.push("/parent/dashboard");
+      }
     } catch (err: unknown) {
       setServerError(
         err instanceof Error ? err.message : "Could not save curriculum settings. Please try again."
@@ -180,19 +249,33 @@ export default function CurriculumSetupPage() {
     }
   }
 
+  if (prefillLoading) {
+    return (
+      <div className="flex min-h-[calc(100vh-57px)] items-center justify-center">
+        <p style={{ color: "var(--color-text-muted)" }}>Loading curriculum settings…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-[calc(100vh-57px)] items-center justify-center p-4">
       <div
         className="w-full max-w-lg rounded-xl border p-8"
         style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
       >
-        <p className="text-xs font-medium mb-4" style={{ color: "var(--color-text-muted)" }}>
-          Step 5 of 5 — Curriculum
-        </p>
+        {isEditMode ? (
+          <p className="text-xs font-medium mb-4" style={{ color: "var(--color-text-muted)" }}>
+            Curriculum Settings
+          </p>
+        ) : (
+          <p className="text-xs font-medium mb-4" style={{ color: "var(--color-text-muted)" }}>
+            Step 5 of 5 — Curriculum
+          </p>
+        )}
 
         <h1 className="text-2xl font-bold mb-1">Curriculum boundaries</h1>
         <p className="text-sm mb-6" style={{ color: "var(--color-text-muted)" }}>
-          Tell L3ARN what matters most for your child's learning. You can refine
+          Tell L3ARN what matters most for your child&apos;s learning. You can refine
           these at any time.
         </p>
 
@@ -343,7 +426,7 @@ export default function CurriculumSetupPage() {
             className="w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-opacity disabled:opacity-60"
             style={{ background: "var(--color-primary)" }}
           >
-            {loading ? "Saving…" : "Complete setup"}
+            {loading ? "Saving…" : isEditMode ? "Save curriculum settings" : "Complete setup"}
           </button>
         </form>
 
@@ -363,5 +446,13 @@ export default function CurriculumSetupPage() {
          */}
       </div>
     </div>
+  );
+}
+
+export default function CurriculumSetupPage() {
+  return (
+    <Suspense fallback={null}>
+      <CurriculumSetupContent />
+    </Suspense>
   );
 }
