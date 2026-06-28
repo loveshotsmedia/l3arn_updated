@@ -6,27 +6,43 @@
  * Confirmation page shown after a parent successfully starts a child session
  * via POST /api/sessions/start (OQ-A8-001).
  *
- * Phase 0 stub: displays a confirmation message based on the childId query param.
- * Phase 1: will display the child's academy display name and session expiry,
- *   received from the StartSessionResponse stored in parent session state or
- *   passed as additional query params.
+ * Reads the launch handoff (childSessionToken + display name + expiry) that the
+ * dashboard stashed in sessionStorage, keyed by childId. "Open Child Entry"
+ * navigates to /student/enter?token=<token> — the same-device handoff. The token
+ * never appears in this page's own URL.
  *
- * This page does NOT expose the childSessionToken — that is passed to the
- * child's device directly (Phase 1: URL param or secure cookie on the child
- * entry URL). The parent confirmation page only shows non-sensitive info.
+ * If the handoff is missing (page refreshed / opened directly), the entry button
+ * is disabled and the parent is sent back to the dashboard to relaunch.
  *
  * Grounded in: ADR-031 (child session model), OQ-A8-001 (session start contract).
  */
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { readLaunchHandoff, type LaunchHandoff } from "@/lib/launch-handoff";
 
 function SessionLaunchedContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const childId = searchParams.get("childId");
+  const [handoff, setHandoff] = useState<LaunchHandoff | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (childId) setHandoff(readLaunchHandoff(childId));
+    setReady(true);
+  }, [childId]);
+
+  function openChildEntry() {
+    if (!handoff) return;
+    router.push(`/student/enter?token=${encodeURIComponent(handoff.token)}`);
+  }
+
+  const expiresLabel = handoff
+    ? new Date(handoff.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : null;
 
   return (
     <div
@@ -83,25 +99,37 @@ function SessionLaunchedContent() {
             color: "var(--color-text-muted)",
             fontSize: "0.95rem",
             lineHeight: 1.6,
-            marginBottom: "2rem",
+            marginBottom: handoff ? "1.25rem" : "2rem",
           }}
         >
-          The child session is now active. Hand the device to your child — they
-          can enter the Academy from the child app.
+          {handoff
+            ? `${handoff.displayName}'s session is active. Hand the device over and open the Academy.`
+            : "The child session is now active. Hand the device to your child — they can enter the Academy from the child app."}
         </p>
 
-        {/* TODO (OQ-A8-001 Phase 1): Display child display name + session expiry
-            once StartSessionResponse is passed via state or query params. */}
-        {childId && (
+        {handoff && expiresLabel && (
           <p
             style={{
               fontSize: "0.8rem",
               color: "var(--color-text-muted)",
-              marginBottom: "1.5rem",
-              fontFamily: "monospace",
+              marginBottom: "1.75rem",
             }}
           >
-            Child ID: {childId}
+            Expires around {expiresLabel}
+          </p>
+        )}
+
+        {ready && !handoff && childId && (
+          <p
+            style={{
+              fontSize: "0.8rem",
+              color: "#f59e0b",
+              marginBottom: "1.5rem",
+              lineHeight: 1.5,
+            }}
+          >
+            The launch link for this session isn&apos;t available on this page anymore.
+            Return to the dashboard and start the session again to open the Academy.
           </p>
         )}
 
@@ -123,16 +151,18 @@ function SessionLaunchedContent() {
             Back to Dashboard
           </Link>
           <button
-            onClick={() => router.push("/student/enter")}
+            onClick={openChildEntry}
+            disabled={!handoff}
             style={{
               padding: "0.625rem 1.25rem",
               borderRadius: "0.5rem",
               border: "none",
-              background: "var(--color-primary)",
+              background: handoff ? "var(--color-primary)" : "var(--color-border)",
               color: "#fff",
               fontSize: "0.875rem",
               fontWeight: 600,
-              cursor: "pointer",
+              cursor: handoff ? "pointer" : "not-allowed",
+              opacity: handoff ? 1 : 0.6,
             }}
           >
             Open Child Entry

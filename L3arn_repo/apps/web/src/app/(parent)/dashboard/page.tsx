@@ -39,6 +39,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { storeLaunchHandoff } from "@/lib/launch-handoff";
 import type { StartSessionResponse } from "@l3arn/shared-types";
 import {
   resolveDefaultVisibilityTier,
@@ -503,6 +504,15 @@ export default function ParentDashboardPage() {
 
       const sessionData = (await response.json()) as StartSessionResponse;
       setSessionLaunched((prev) => ({ ...prev, [childId]: sessionData }));
+
+      // Carry the token across navigation (sessionStorage, not the URL) so the
+      // confirmation page can build the child entry link. The child entry page
+      // verifies this token via POST /api/sessions/verify before granting entry.
+      storeLaunchHandoff(childId, {
+        token: sessionData.childSessionToken,
+        displayName: sessionData.academyIdentity.displayName,
+        expiresAt: sessionData.expiresAt,
+      });
 
       // Redirect to confirmation page — hand device to child
       router.push(`/parent/session-launched?childId=${childId}`);
