@@ -273,7 +273,27 @@ export default function ChildReportPage() {
         .eq("child_profile_id", params.childId)
         .order("assessed_at", { ascending: false });
 
-      setMasteryRecords((masteryData ?? []) as MasteryRecordRow[]);
+      // Enrich mastery records with parent-friendly skill names (mastery_skills
+      // lookup) so the UI shows "Can catch AI mistakes" instead of a raw UUID.
+      const masteryRows = (masteryData ?? []) as MasteryRecordRow[];
+      const skillIds = [...new Set(masteryRows.map((r) => r.mastery_skill_id))];
+      if (skillIds.length > 0) {
+        const { data: skillRows } = await supabase
+          .from("mastery_skills")
+          .select("id, name, parent_friendly_name")
+          .in("id", skillIds);
+        const nameById = new Map(
+          (skillRows ?? []).map((s) => [
+            s.id as string,
+            ((s.parent_friendly_name as string | null) ??
+              (s.name as string | null)) || undefined,
+          ]),
+        );
+        for (const r of masteryRows) {
+          r.skill_name = nameById.get(r.mastery_skill_id) ?? r.skill_name;
+        }
+      }
+      setMasteryRecords(masteryRows);
 
       // ── 5. Load portfolio items (parent_consented = true only) ───────────
       // In "summary" visibility tier, portfolio items are not shown
@@ -308,7 +328,7 @@ export default function ChildReportPage() {
               .eq("child_profile_id", params.childId),
             supabase
               .from("xp_events")
-              .select("amount")
+              .select("xp_amount")
               .eq("child_profile_id", params.childId),
             supabase
               .from("mission_attempts")
@@ -342,8 +362,8 @@ export default function ChildReportPage() {
           (sum, r) => sum + (r.amount ?? 0),
           0
         );
-        const totalXp = (xpRows as { amount: number }[]).reduce(
-          (sum, r) => sum + (r.amount ?? 0),
+        const totalXp = (xpRows as { xp_amount: number }[]).reduce(
+          (sum, r) => sum + (r.xp_amount ?? 0),
           0
         );
         const missionsAttempted = attemptRows.length;
@@ -354,7 +374,9 @@ export default function ChildReportPage() {
         setGameData({
           moolahBalance: Math.max(0, moolahBalance),
           totalXp,
-          companionName: companionKey ?? "—",
+          companionName: companionKey
+            ? companionKey.split("-").pop()!.replace(/^\w/, (c) => c.toUpperCase())
+            : "—",
           companionBondLevel,
           missionsCompleted,
           missionsAttempted,

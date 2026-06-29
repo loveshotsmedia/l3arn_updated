@@ -283,3 +283,108 @@ export function completeMission(
 ): Promise<ApiOutcome<CompleteMissionResponse>> {
   return authedPost<CompleteMissionResponse>("/api/student/mission/complete", input);
 }
+
+// ── House Calling calibration signals ─────────────────────────────────────────
+
+export interface CalibrationSignalPayload {
+  traitScores: {
+    curiosity: number;
+    courage: number;
+    creativity: number;
+    leadership: number;
+    collaboration: number;
+    resilience: number;
+    independence: number;
+  };
+  recommendedHouse: string;
+  selectedHouse: string;
+  overrideUsed: boolean;
+}
+
+/**
+ * Persist House Calling trial signals to Railway.
+ * Best-effort — callers should catch and ignore errors.
+ * Stored in house_calling_signals (migration 010).
+ */
+export function saveCalibrationSignals(
+  payload: CalibrationSignalPayload,
+): Promise<ApiOutcome<{ ok: true }>> {
+  return authedPost<{ ok: true }>("/api/student/session/calibration-signals", payload);
+}
+
+// ── Evidence capture ──────────────────────────────────────────────────────────
+
+export interface EvidenceCapturePayload {
+  missionAttemptId: string;
+  taskId: string;
+  evidenceCaptureType:
+    | "decision-log"
+    | "sequence-completion"
+    | "ai-mistake-check"
+    | "explanation"
+    | "reflection"
+    | "structured-replay"
+    | "artifact-upload"
+    | "audio-response"
+    | "screenshot";
+  contentJson?: Record<string, unknown>;
+}
+
+/**
+ * Capture evidence for a mission task interaction.
+ * Best-effort — callers should wrap in try/catch. Non-fatal.
+ *
+ * Calls POST /api/student/mission/evidence on Railway.
+ * Auth: stored child session token (Bearer header via authedPost).
+ */
+export function captureEvidence(
+  missionAttemptId: string,
+  taskId: string,
+  evidenceCaptureType: EvidenceCapturePayload["evidenceCaptureType"],
+  contentJson: Record<string, unknown> = {},
+): Promise<ApiOutcome<{ ok: true; evidenceId: string }>> {
+  return authedPost<{ ok: true; evidenceId: string }>("/api/student/mission/evidence", {
+    missionAttemptId,
+    taskId,
+    evidenceCaptureType,
+    contentJson,
+  });
+}
+
+// ── Learner calibration pipeline ──────────────────────────────────────────────
+
+export interface CalibrationSnapshotResult {
+  stage: string;
+  confidenceScore: number;
+  signalSources: string[];
+}
+
+/**
+ * Trigger a calibration snapshot update after a significant learning event.
+ *
+ * The Railway backend reads house_calling_signals + learning_evidence_events to
+ * compute the current calibration stage and confidence score (architecture.md §9),
+ * then persists the result to calibration_snapshots (migration 011).
+ *
+ * When to call:
+ *   - After House Calling ceremony completes (sorting-ceremony → 0.40–0.55)
+ *   - After completeMission() succeeds (mission-001 → 0.60–0.75)
+ *
+ * Best-effort — non-fatal. Callers should NOT await this in the critical path;
+ * fire-and-forget or await after confirming the primary action succeeded.
+ *
+ * Example (after mission complete):
+ *   const result = await completeMission(input);
+ *   if (result.ok) {
+ *     updateCalibration().catch(() => {}); // best-effort, non-blocking
+ *   }
+ *
+ * Stage → confidence range (architecture.md §9):
+ *   "onboarding"        → 0.20–0.35 (no signals yet)
+ *   "sorting-ceremony"  → 0.40–0.55 (House Calling trait scores present)
+ *   "mission-001"       → 0.60–0.75 (learning evidence events present)
+ *   "days-7-14"         → 0.80–0.90 (future phase)
+ */
+export function updateCalibration(): Promise<ApiOutcome<CalibrationSnapshotResult>> {
+  return authedPost<CalibrationSnapshotResult>("/api/student/calibration/snapshot", {});
+}

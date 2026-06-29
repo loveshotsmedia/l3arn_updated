@@ -82,7 +82,16 @@ export async function withAIRetry<T>(
     try {
       const validated = validate(raw);
 
-      // Validation succeeded
+      // Validation succeeded — structured log so operators can confirm AI path is active
+      console.log(
+        JSON.stringify({
+          level: "info",
+          system: "mission-compiler",
+          msg: "AI generation succeeded",
+          attemptsUsed: attempt,
+          contentSource: "ai",
+        }),
+      );
       return {
         status: "validated",
         data: validated,
@@ -124,8 +133,17 @@ export async function withAIRetry<T>(
   // All AI_MAX_RETRY_ATTEMPTS attempts failed — use safe fallback
   const fallback = getFallback();
 
-  console.error(
-    `[retry-engine] All ${AI_MAX_RETRY_ATTEMPTS} attempts failed. Using safe fallback: ${fallback.id}`,
+  // Structured log so Railway/Datadog/log alerting can filter on level="warn"
+  // and system="mission-compiler" to detect silent AI fallback in production.
+  console.log(
+    JSON.stringify({
+      level: "warn",
+      system: "mission-compiler",
+      msg: "AI generation failed — using static fallback content",
+      fallbackId: fallback.id,
+      attemptCount: AI_MAX_RETRY_ATTEMPTS,
+      errorSummary: failedAttempts.map((a) => `[${a.attemptNumber}] ${a.failureReason}`).join(" | "),
+    }),
   );
 
   // The AIOutputResultSchema requires exactly 3 attempts in the failed-with-fallback branch.

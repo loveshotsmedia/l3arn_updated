@@ -111,6 +111,7 @@ export interface MissionCompilerInput {
   childPersonalization: {
     displayName: string;
     houseAffiliation: string;
+    companionName?: string;
     companionPersonality: string;
     learningPrefs: string[];
     audioEnabled?: boolean;
@@ -205,6 +206,7 @@ export class MissionCompiler {
       childPersonalization: {
         displayName: input.childPersonalization.displayName,
         houseAffiliation: input.childPersonalization.houseAffiliation,
+        companionName: input.childPersonalization.companionName,
         companionPersonality: input.childPersonalization.companionPersonality,
         learningPrefs: input.childPersonalization.learningPrefs,
       },
@@ -217,8 +219,12 @@ export class MissionCompiler {
       // generate(): call Claude via tool_use (structured output) — no JSON.parse() needed
       async () => {
         const response = await this.client.messages.create({
+          // A full Mission 001 (6 delivery formats + evidence/reward/parent plans)
+          // exceeds 4096 output tokens; at 4096 the tool_use JSON was truncated,
+          // dropping later required fields (evidencePlan, rewardPlan, …) → ZodError
+          // → fallback every time. 16000 leaves ample headroom. (Verified 2026-06-28.)
           model: modelVersion,
-          max_tokens: 4096,
+          max_tokens: 16000,
           system: systemPrompt,
           messages: [{ role: "user", content: userMessage }],
           tools: [
