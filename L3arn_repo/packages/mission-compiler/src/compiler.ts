@@ -111,6 +111,7 @@ export interface MissionCompilerInput {
   childPersonalization: {
     displayName: string;
     houseAffiliation: string;
+    companionName?: string;
     companionPersonality: string;
     learningPrefs: string[];
     audioEnabled?: boolean;
@@ -205,6 +206,7 @@ export class MissionCompiler {
       childPersonalization: {
         displayName: input.childPersonalization.displayName,
         houseAffiliation: input.childPersonalization.houseAffiliation,
+        companionName: input.childPersonalization.companionName,
         companionPersonality: input.childPersonalization.companionPersonality,
         learningPrefs: input.childPersonalization.learningPrefs,
       },

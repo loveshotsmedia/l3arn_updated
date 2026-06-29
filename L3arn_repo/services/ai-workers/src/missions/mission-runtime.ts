@@ -79,7 +79,7 @@ export async function startMission(
 
   const { data: companion } = await supabase
     .from("companion_profiles")
-    .select("companion_key, character_style, teaching_tone")
+    .select("companion_key, character_name, character_style, teaching_tone")
     .eq("child_profile_id", session.child_profile_id)
     .maybeSingle();
 
@@ -91,6 +91,8 @@ export async function startMission(
     (companion as { teaching_tone?: string; character_style?: string } | null)?.teaching_tone ??
     (companion as { character_style?: string } | null)?.character_style ??
     "encouraging guide";
+  const companionName =
+    (companion as { character_name?: string } | null)?.character_name ?? undefined;
 
   // Compile. compile() validates with Zod and falls back to static content if
   // the AI call fails — it does not throw for that case. Unexpected throws
@@ -101,6 +103,7 @@ export async function startMission(
     childPersonalization: {
       displayName,
       houseAffiliation,
+      companionName,
       companionPersonality,
       learningPrefs: [],
       audioEnabled: false,

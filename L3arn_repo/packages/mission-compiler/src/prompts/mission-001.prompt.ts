@@ -41,6 +41,7 @@ export interface Mission001PromptInput {
   childPersonalization: {
     displayName: string;
     houseAffiliation: string;
+    companionName?: string;
     companionPersonality: string;
     learningPrefs: string[];
   };
@@ -194,6 +195,7 @@ export function buildMission001UserMessage(input: Mission001PromptInput): string
 ## Constraint 2: Child Personalization
 - Academy Display Name: ${childPersonalization.displayName}
 - House Affiliation: ${childPersonalization.houseAffiliation}
+- Companion Name: ${childPersonalization.companionName || "(none chosen — invent a fitting companion name)"}${childPersonalization.companionName ? " — ALWAYS refer to the companion by THIS exact name throughout the mission; never invent a different name." : ""}
 - Companion Personality: ${childPersonalization.companionPersonality}
 - Learning Preferences: ${childPersonalization.learningPrefs.join(", ") || "Not yet specified — use calibration signals"}
 
