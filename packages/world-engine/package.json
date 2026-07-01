@@ -8,23 +8,28 @@
   "scripts": {
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'No tests yet'"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@react-three/drei": "^9.109.2",
-    "@react-three/fiber": "^8.17.10",
-    "react": "^18.3.1",
-    "three": "^0.167.1",
+    "@react-three/drei": "^10.0.0",
+    "@react-three/fiber": "^9.1.0",
+    "@react-three/postprocessing": "^3.0.0",
+    "camera-controls": "^3.1.2",
+    "koota": "^0.6.6",
+    "postprocessing": "^6.39.2",
+    "react": "^19.1.0",
+    "three": "^0.171.0",
     "zod": "^3.23.0",
-    "zustand": "^4.5.0"
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
-    "@types/react": "^18.3.12",
-    "@types/three": "^0.167.0",
-    "typescript": "^5.7.0"
+    "@types/react": "^19.0.0",
+    "@types/three": "^0.171.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
   },
   "peerDependencies": {
-    "react": "^18.0.0",
-    "three": "^0.167.0"
+    "react": "^19.0.0",
+    "three": "^0.171.0"
   }
 }

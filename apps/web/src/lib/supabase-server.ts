@@ -15,8 +15,8 @@ import { cookies } from "next/headers";
  * Standard server client for authenticated parent/guardian contexts.
  * Uses the anon key — RLS enforced per caller JWT.
  */
-export function createSupabaseServerClient() {
-  const cookieStore = cookies();
+export async function createSupabaseServerClient() {
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",

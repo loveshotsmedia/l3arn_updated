@@ -11,5 +11,8 @@
   "engines": {
     "node": ">=22.13.0",
     "pnpm": "11.7.0"
+  },
+  "devDependencies": {
+    "@gltf-transform/cli": "^4.4.0"
   }
 }

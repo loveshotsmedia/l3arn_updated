@@ -41,14 +41,14 @@ const ReviewBodySchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const escalationId = params.id;
+  const { id: escalationId } = await params;
 
   // ── 1. Auth check (session + admin_users table) ──────────────────────────────
   // Authorization: Supabase auth + admin_users table (server-side only).
   // See apps/web/src/lib/admin-auth.ts
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
