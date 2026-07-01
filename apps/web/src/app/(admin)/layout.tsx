@@ -36,7 +36,7 @@ export default async function AdminLayout({
   // See apps/web/src/lib/admin-auth.ts
 
   // Step 1: Verify a valid Supabase session
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();

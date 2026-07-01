@@ -1,8 +1,8 @@
 /**
  * Beta Application Form — Agent 12 Task 2
  *
- * This is a Client Component because the form uses useFormState/useFormStatus
- * for progressive enhancement (React 18 + Next.js 14 App Router pattern).
+ * This is a Client Component because the form uses useActionState/useFormStatus
+ * for progressive enhancement (React 19 + Next.js 15 App Router pattern).
  *
  * Rules enforced:
  * - No PII beyond email + first_name collected
@@ -13,7 +13,8 @@
  */
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { submitBetaApplication, type SubmitResult } from "./actions";
 
 // Note: This is a Client Component ("use client") for form interactivity.
@@ -170,7 +171,7 @@ const questionBlockStyle: React.CSSProperties = {
 const initialState: SubmitResult = {};
 
 export default function ApplyPage() {
-  const [state, formAction] = useFormState(submitBetaApplication, initialState);
+  const [state, formAction] = useActionState(submitBetaApplication, initialState);
 
   return (
     <main

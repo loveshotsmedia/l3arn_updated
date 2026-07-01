@@ -8,13 +8,14 @@ export const metadata: Metadata = {
 };
 
 interface ThankYouPageProps {
-  searchParams: { name?: string };
+  searchParams: Promise<{ name?: string }>;
 }
 
-export default function ThankYouPage({ searchParams }: ThankYouPageProps) {
+export default async function ThankYouPage({ searchParams }: ThankYouPageProps) {
   // first_name is passed as a URL query param from the Server Action redirect.
   // We sanitize by only displaying it if it's a non-empty string.
-  const rawName = searchParams.name ?? "";
+  const resolvedSearchParams = await searchParams;
+  const rawName = resolvedSearchParams.name ?? "";
   const firstName =
     rawName.trim().length > 0 && rawName.trim().length <= 100
       ? rawName.trim()
