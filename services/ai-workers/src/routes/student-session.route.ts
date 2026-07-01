@@ -460,24 +460,44 @@ studentSessionRouter.post(
     const session = await requireChildSession(req, res, supabase);
     if (!session) return;
 
-    const { data: holding, error: upsertError } = await supabase
-      .from("world_holdings")
-      .upsert(
-        {
-          child_profile_id: session.child_profile_id,
-          holding_id: holdingId,
-          unlocked_by_mission_id: unlockedByMissionId,
-        },
-        { onConflict: "child_profile_id,holding_id", ignoreDuplicates: true },
-      )
-      .select("holding_id, unlocked_by_mission_id, unlocked_at")
-      .single();
+    // ignoreDuplicates maps to INSERT ... ON CONFLICT DO NOTHING — when the
+    // conflict path is taken (already unlocked), Postgres returns zero rows.
+    // Don't chain .select().single() onto the upsert itself (that would turn
+    // the idempotent no-op into a false PGRST116 error, same reason the
+    // child_badges upsert in mission-runtime.ts only checks { error }). Instead,
+    // upsert first, then read back the row separately — it's guaranteed to
+    // exist afterward whether this call inserted it or it already existed.
+    const { error: upsertError } = await supabase.from("world_holdings").upsert(
+      {
+        child_profile_id: session.child_profile_id,
+        holding_id: holdingId,
+        unlocked_by_mission_id: unlockedByMissionId,
+      },
+      { onConflict: "child_profile_id,holding_id", ignoreDuplicates: true },
+    );
 
-    if (upsertError || !holding) {
+    if (upsertError) {
       log("error", "POST /holdings: failed to upsert world_holdings", {
         childProfileId: session.child_profile_id,
         holdingId,
-        dbError: upsertError?.message,
+        dbError: upsertError.message,
+      });
+      res.status(500).json({ error: "HOLDING_WRITE_ERROR", message: "Could not save your progress." });
+      return;
+    }
+
+    const { data: holding, error: readError } = await supabase
+      .from("world_holdings")
+      .select("holding_id, unlocked_by_mission_id, unlocked_at")
+      .eq("child_profile_id", session.child_profile_id)
+      .eq("holding_id", holdingId)
+      .single();
+
+    if (readError || !holding) {
+      log("error", "POST /holdings: upsert succeeded but read-back failed", {
+        childProfileId: session.child_profile_id,
+        holdingId,
+        dbError: readError?.message,
       });
       res.status(500).json({ error: "HOLDING_WRITE_ERROR", message: "Could not save your progress." });
       return;
