@@ -1,8 +1,14 @@
 import type { GameWorld } from '../core/world';
 import { Position, MoveTarget } from '../core/world';
 
-/** Units per fixed simulation step. At a 60hz fixed clock this is ~3 units/sec. */
-const STEP_SPEED = 0.05;
+/**
+ * Fraction of the REMAINING distance covered per fixed simulation step
+ * (exponential ease-out), matching the old render-loop `LERP_SPEED = 0.05`
+ * per-frame lerp. This is NOT a constant speed: velocity is proportional to
+ * distance from the target (~3 × distance units/sec at a 60hz fixed clock),
+ * so do not derive units/sec or time-to-arrival from this value directly.
+ */
+const APPROACH_FACTOR = 0.05;
 const ARRIVAL_TOLERANCE = 0.02;
 
 export function stepMovement(world: GameWorld): void {
@@ -20,7 +26,7 @@ export function stepMovement(world: GameWorld): void {
       return;
     }
 
-    pos.x += dx * STEP_SPEED;
-    pos.z += dz * STEP_SPEED;
+    pos.x += dx * APPROACH_FACTOR;
+    pos.z += dz * APPROACH_FACTOR;
   });
 }

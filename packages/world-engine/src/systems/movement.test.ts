@@ -3,7 +3,7 @@ import { createGameWorld, Position, MoveTarget } from '../core/world';
 import { stepMovement } from './movement';
 
 describe('stepMovement', () => {
-  it('moves an entity toward its active MoveTarget at a fixed rate per step', () => {
+  it('moves an entity toward its active MoveTarget by a fraction of the remaining distance per step', () => {
     const world = createGameWorld();
     world.spawn(
       Position({ x: 0, y: 0.9, z: 0 }),
