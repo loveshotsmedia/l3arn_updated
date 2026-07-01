@@ -1,19 +1,19 @@
 /**
  * PlayerAvatar — The student's in-world representation.
  *
- * Renders as a capsule mesh tinted by the student's House color.
- * Displays the Academy Display Name (never legal name — ADR-007).
- *
- * Movement: subscribes to worldStore.moveTarget and lerps toward it each frame.
- * Floor clicks dispatch avatar-move-requested → GreatHall → worldStore.setMoveTarget.
+ * Position is owned by the ECS (core/world.ts Position trait) and advanced
+ * by systems/movement.ts inside SimLoop's fixed-timestep tick. This component
+ * only reads the entity's Position each frame and writes it onto the ref —
+ * it never mutates simulation state itself (spec §6.2: render = mutation
+ * through refs, sim lives outside React).
  */
-
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import { Vector3, type Group } from 'three';
+import type { Group } from 'three';
 import { HOUSE_COLORS } from '../types';
 import { useWorldStore } from '../state/worldStore';
+import { Position } from '../core/world';
 
 interface PlayerAvatarProps {
   displayName: string;
@@ -21,31 +21,29 @@ interface PlayerAvatarProps {
   initialPosition?: [number, number, number];
 }
 
-const LERP_SPEED = 0.05;
-
 export function PlayerAvatar({
   displayName,
   house,
   initialPosition = [3, 0.9, 3],
 }: PlayerAvatarProps) {
   const meshRef = useRef<Group>(null);
-  const currentPos = useRef(new Vector3(...initialPosition));
-  const targetVec = useRef(new Vector3(...initialPosition));
+  const houseColor = house ? HOUSE_COLORS[house] : '#64748b';
+  const world = useWorldStore((s) => s.world);
+  const ensurePlayerEntity = useWorldStore((s) => s.ensurePlayerEntity);
 
-  const moveTarget = useWorldStore((s) => s.moveTarget);
-
-  // Sync targetVec with store's moveTarget
-  if (moveTarget) {
-    targetVec.current.set(moveTarget.x, initialPosition[1], moveTarget.z);
-  }
+  useEffect(() => {
+    ensurePlayerEntity(initialPosition, houseColor);
+    // Intentionally run once — the entity must not be re-created on re-renders
+    // (e.g. when `house` resolves after the verified-identity effect fires).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useFrame(() => {
     if (!meshRef.current) return;
-    currentPos.current.lerp(targetVec.current, LERP_SPEED);
-    meshRef.current.position.copy(currentPos.current);
+    world.query(Position).updateEach(([pos]) => {
+      meshRef.current!.position.set(pos.x, pos.y, pos.z);
+    });
   });
-
-  const houseColor = house ? HOUSE_COLORS[house] : '#64748b';
 
   return (
     <group ref={meshRef} position={initialPosition}>
@@ -57,12 +55,7 @@ export function PlayerAvatar({
         <sphereGeometry args={[0.28, 16, 16]} />
         <meshStandardMaterial color={houseColor} roughness={0.5} />
       </mesh>
-      <Html
-        position={[0, 1.4, 0]}
-        center
-        distanceFactor={10}
-        style={{ pointerEvents: 'none' }}
-      >
+      <Html position={[0, 1.4, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
         <div
           style={{
             background: 'rgba(15, 23, 42, 0.8)',

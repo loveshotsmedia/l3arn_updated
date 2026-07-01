@@ -25,6 +25,8 @@ import { OrbitControls } from '@react-three/drei';
 import { Suspense } from 'react';
 import type { SceneKey, WorldEvent } from './types';
 import { GreatHall } from './scenes/GreatHall';
+import { SimLoop } from './render/SimLoop';
+import { useWorldStore } from './state/worldStore';
 
 interface WorldCanvasProps {
   scene: SceneKey;
@@ -65,6 +67,8 @@ function SceneLoader({ scene, onEvent, displayName, house }: WorldCanvasProps) {
 }
 
 export function WorldCanvas({ scene, onEvent, displayName, house }: WorldCanvasProps) {
+  const world = useWorldStore((s) => s.world);
+
   return (
     <Canvas
       shadows
@@ -95,6 +99,9 @@ export function WorldCanvas({ scene, onEvent, displayName, house }: WorldCanvasP
 
       {/* Fill light — soft opposite side */}
       <directionalLight position={[-5, 10, -5]} intensity={0.3} />
+
+      {/* SimLoop — the single fixed-timestep simulation tick for the whole world */}
+      <SimLoop world={world} />
 
       {/* OrbitControls — restricted so students can't spin to first-person */}
       <OrbitControls
