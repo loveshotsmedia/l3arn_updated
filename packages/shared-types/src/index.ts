@@ -44,5 +44,8 @@ export * from "./admin.schema";
 // ── Session contracts (cross-service: Railway API + Vercel frontend) ──────────
 export * from "./session.schema";
 
+// ── World engine contracts (3D Academy world state) ────────────────────────────
+export * from "./world-holdings.schema";
+
 // ── DB ↔ Domain mappers (resolve field name mismatches between Zod and DB) ───
 export * from "./mappers";
