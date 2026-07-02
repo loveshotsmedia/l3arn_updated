@@ -8,8 +8,8 @@
  *   house       — student's House selection (drives avatar color)
  *
  * Camera: isometric-ish fixed angle (Sims-style), position [10, 10, 10] looking
- * at origin. OrbitControls is included but limited to prevent full free-look
- * (students use click-to-move, not WASD/first-person).
+ * at origin. CameraRig (camera-controls) constrains zoom/angle to prevent full
+ * free-look (students use click-to-move, not WASD/first-person).
  *
  * Lighting: ambient + directional (three-point lighting placeholder).
  *
@@ -21,10 +21,10 @@
  */
 
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
 import { Suspense } from 'react';
 import type { SceneKey, WorldEvent } from './types';
 import { GreatHall } from './scenes/GreatHall';
+import { CameraRig } from './render/CameraRig';
 import { SimLoop } from './render/SimLoop';
 import { useWorldStore } from './state/worldStore';
 
@@ -103,16 +103,8 @@ export function WorldCanvas({ scene, onEvent, displayName, house }: WorldCanvasP
       {/* SimLoop — the single fixed-timestep simulation tick for the whole world */}
       <SimLoop world={world} />
 
-      {/* OrbitControls — restricted so students can't spin to first-person */}
-      <OrbitControls
-        enablePan={false}
-        enableZoom={true}
-        minPolarAngle={Math.PI / 6}   // ~30 deg — don't go to top-down
-        maxPolarAngle={Math.PI / 2.5} // ~72 deg — don't go fully horizontal
-        minDistance={8}
-        maxDistance={30}
-        target={[0, 0, 0]}
-      />
+      {/* CameraRig — Sims-style constrained camera (ADR-004) */}
+      <CameraRig />
 
       {/* Scene content */}
       <Suspense fallback={null}>
