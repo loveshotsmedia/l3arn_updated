@@ -11,7 +11,10 @@
  * at origin. CameraRig (camera-controls) constrains zoom/angle to prevent full
  * free-look (students use click-to-move, not WASD/first-person).
  *
- * Lighting: ambient + directional (three-point lighting placeholder).
+ * Lighting: single rig (Lighting.tsx) — IBL environment map, one shadow-
+ * casting sun, soft fill, ACES filmic tone mapping (spec §7.2). Post-
+ * processing (PostProfiles.tsx) swaps between a full explore-mode look
+ * (bloom + AO) and a stripped-back quiet mode for missions.
  *
  * Scene loading: each SceneKey maps to a scene component. New rooms are added
  * here as new entries in the switch — keep each scene self-contained.
@@ -26,6 +29,8 @@ import type { SceneKey, WorldEvent } from './types';
 import { GreatHall } from './scenes/GreatHall';
 import { CameraRig } from './render/CameraRig';
 import { SimLoop } from './render/SimLoop';
+import { Lighting } from './render/Lighting';
+import { PostProfiles } from './render/PostProfiles';
 import { useWorldStore } from './state/worldStore';
 
 interface WorldCanvasProps {
@@ -81,30 +86,15 @@ export function WorldCanvas({ scene, onEvent, displayName, house }: WorldCanvasP
       }}
       style={{ width: '100%', height: '100%' }}
     >
-      {/* Ambient light — base fill */}
-      <ambientLight intensity={0.4} />
-
-      {/* Key light — directional from upper-right */}
-      <directionalLight
-        position={[10, 20, 10]}
-        intensity={1.2}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-far={50}
-        shadow-camera-left={-20}
-        shadow-camera-right={20}
-        shadow-camera-top={20}
-        shadow-camera-bottom={-20}
-      />
-
-      {/* Fill light — soft opposite side */}
-      <directionalLight position={[-5, 10, -5]} intensity={0.3} />
+      <Lighting />
 
       {/* SimLoop — the single fixed-timestep simulation tick for the whole world */}
       <SimLoop world={world} />
 
       {/* CameraRig — Sims-style constrained camera (ADR-004) */}
       <CameraRig />
+
+      <PostProfiles />
 
       {/* Scene content */}
       <Suspense fallback={null}>
