@@ -21,7 +21,7 @@ export function Lighting() {
 
   return (
     <>
-      <Environment preset="dawn" background={false} />
+      <Environment files="/env/great-hall-dawn.hdr" background={false} />
 
       <ambientLight intensity={0.25} />
 

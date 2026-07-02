@@ -13,6 +13,12 @@ dist/
 out/
 build/
 
+# apps/web/public/{env,models} are synced from packages/world-engine/public at
+# dev/build time (scripts/sync-world-engine-public.mjs) — that package dir is
+# the canonical source (asset manifest + Task 9's CI budget gate live there).
+apps/web/public/env/
+apps/web/public/models/
+
 # Environment files — only .env.example files should ever be committed
 # .env.example must contain ONLY placeholders, never real values
 .env
