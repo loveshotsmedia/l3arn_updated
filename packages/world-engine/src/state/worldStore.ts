@@ -13,6 +13,7 @@
 
 import { create } from 'zustand';
 import { createGameWorld, Position, MoveTarget, HouseTint, type GameWorld } from '../core/world';
+import { createMissionModeController } from '../systems/missionMode';
 
 interface WorldState {
   world: GameWorld;
@@ -37,6 +38,17 @@ interface WorldState {
   enterMissionMode: () => void;
   exitMissionMode: () => void;
 }
+
+const missionModeController = createMissionModeController({
+  onEnterMission: () => {
+    // Registered listeners (post-processing profile, ambient systems) read
+    // worldMode directly via useWorldStore — this controller's job is only
+    // to guarantee enter/exit fire exactly once per transition, for any
+    // future system (e.g. companion animation damping) that needs a single
+    // imperative hook rather than a reactive subscription.
+  },
+  onExitMission: () => {},
+});
 
 export const useWorldStore = create<WorldState>((set, get) => ({
   world: createGameWorld(),
@@ -79,6 +91,12 @@ export const useWorldStore = create<WorldState>((set, get) => ({
   freezeWorldState: () => set({ worldStateFrozen: true }),
   unfreezeWorldState: () => set({ worldStateFrozen: false }),
 
-  enterMissionMode: () => set({ worldMode: 'mission' }),
-  exitMissionMode: () => set({ worldMode: 'explore' }),
+  enterMissionMode: () => {
+    missionModeController.setMode('mission');
+    set({ worldMode: 'mission' });
+  },
+  exitMissionMode: () => {
+    missionModeController.setMode('explore');
+    set({ worldMode: 'explore' });
+  },
 }));
