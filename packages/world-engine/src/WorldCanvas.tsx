@@ -23,8 +23,8 @@
  * implemented. This is a placeholder hard-swap.
  */
 
-import { Canvas } from '@react-three/fiber';
-import { Suspense } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Suspense, useEffect, useRef } from 'react';
 import type { SceneKey, WorldEvent } from './types';
 import { GreatHall } from './scenes/GreatHall';
 import { CameraRig } from './render/CameraRig';
@@ -32,6 +32,7 @@ import { SimLoop } from './render/SimLoop';
 import { Lighting } from './render/Lighting';
 import { PostProfiles } from './render/PostProfiles';
 import { useWorldStore } from './state/worldStore';
+import { classifyDeviceTier, detectRendererString, TIER_DPR_CAP, createFpsGovernor } from './device/deviceTier';
 
 interface WorldCanvasProps {
   scene: SceneKey;
@@ -71,6 +72,36 @@ function SceneLoader({ scene, onEvent, displayName, house }: WorldCanvasProps) {
   }
 }
 
+function DeviceGovernor() {
+  const { gl, invalidate } = useThree();
+  const setQualityTier = useWorldStore((s) => s.setQualityTier);
+  const setDpr = useWorldStore((s) => s.setDpr);
+  const governorRef = useRef<ReturnType<typeof createFpsGovernor> | null>(null);
+
+  useEffect(() => {
+    const renderer = detectRendererString(gl.getContext());
+    const tier = classifyDeviceTier(renderer);
+    const startingDpr = TIER_DPR_CAP[tier];
+    setQualityTier(tier);
+    setDpr(startingDpr);
+    gl.setPixelRatio(startingDpr);
+    governorRef.current = createFpsGovernor(startingDpr, { targetFps: tier === 'LOW' ? 30 : 60 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useFrame((_state, delta) => {
+    if (!governorRef.current) return;
+    const nextDpr = governorRef.current.sample(delta);
+    if (Math.abs(nextDpr - gl.getPixelRatio()) > 0.05) {
+      gl.setPixelRatio(nextDpr);
+      setDpr(nextDpr);
+      invalidate();
+    }
+  });
+
+  return null;
+}
+
 export function WorldCanvas({ scene, onEvent, displayName, house }: WorldCanvasProps) {
   const world = useWorldStore((s) => s.world);
 
@@ -87,6 +118,8 @@ export function WorldCanvas({ scene, onEvent, displayName, house }: WorldCanvasP
       style={{ width: '100%', height: '100%' }}
     >
       <Lighting />
+
+      <DeviceGovernor />
 
       {/* SimLoop — the single fixed-timestep simulation tick for the whole world */}
       <SimLoop world={world} />
