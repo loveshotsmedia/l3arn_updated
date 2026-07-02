@@ -14,6 +14,7 @@
 import { create } from 'zustand';
 import { createGameWorld, Position, MoveTarget, HouseTint, type GameWorld } from '../core/world';
 import { createMissionModeController } from '../systems/missionMode';
+import type { DeviceTier } from '../device/deviceTier';
 
 interface WorldState {
   world: GameWorld;
@@ -29,6 +30,9 @@ interface WorldState {
   currentScene: string | null;
   worldStateFrozen: boolean;
 
+  qualityTier: DeviceTier;
+  dpr: number;
+
   ensurePlayerEntity: (initialPosition: [number, number, number], houseColor: string) => number;
   setMoveTarget: (x: number, y: number, z: number) => void;
   clearMoveTarget: () => void;
@@ -37,6 +41,8 @@ interface WorldState {
   unfreezeWorldState: () => void;
   enterMissionMode: () => void;
   exitMissionMode: () => void;
+  setQualityTier: (tier: DeviceTier) => void;
+  setDpr: (dpr: number) => void;
 }
 
 const missionModeController = createMissionModeController({
@@ -57,6 +63,9 @@ export const useWorldStore = create<WorldState>((set, get) => ({
   worldMode: 'explore',
   currentScene: null,
   worldStateFrozen: false,
+
+  qualityTier: 'MED',
+  dpr: 1.5,
 
   ensurePlayerEntity: (initialPosition, houseColor) => {
     const existing = get().playerEntity;
@@ -99,4 +108,7 @@ export const useWorldStore = create<WorldState>((set, get) => ({
     missionModeController.setMode('explore');
     set({ worldMode: 'explore' });
   },
+
+  setQualityTier: (tier) => set({ qualityTier: tier }),
+  setDpr: (dpr) => set({ dpr }),
 }));
