@@ -27,6 +27,13 @@ interface WorldState {
   /** Explore vs Mission — the two-modes law (spec §4). */
   worldMode: 'explore' | 'mission';
 
+  /**
+   * Target the CameraRig should "settle" toward on the Explore→Mission
+   * transition (spec §8.5). null = no pending settle. CameraRig watches this
+   * via useWorldStore.subscribe and clears it once the camera move is issued.
+   */
+  settleTarget: [number, number, number] | null;
+
   currentScene: string | null;
   worldStateFrozen: boolean;
 
@@ -41,6 +48,8 @@ interface WorldState {
   unfreezeWorldState: () => void;
   enterMissionMode: () => void;
   exitMissionMode: () => void;
+  requestSettle: (target: [number, number, number]) => void;
+  clearSettle: () => void;
   setQualityTier: (tier: DeviceTier) => void;
   setDpr: (dpr: number) => void;
 }
@@ -61,6 +70,7 @@ export const useWorldStore = create<WorldState>((set, get) => ({
   playerEntity: null,
   moveTarget: null,
   worldMode: 'explore',
+  settleTarget: null,
   currentScene: null,
   worldStateFrozen: false,
 
@@ -108,6 +118,9 @@ export const useWorldStore = create<WorldState>((set, get) => ({
     missionModeController.setMode('explore');
     set({ worldMode: 'explore' });
   },
+
+  requestSettle: (target) => set({ settleTarget: target }),
+  clearSettle: () => set({ settleTarget: null }),
 
   setQualityTier: (tier) => set({ qualityTier: tier }),
   setDpr: (dpr) => set({ dpr }),
