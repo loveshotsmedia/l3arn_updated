@@ -1,26 +1,19 @@
 /**
  * GreatHall — Main arrival scene for the L3ARN Academy.
  *
- * Contains:
- * - Stone floor plane (color placeholder — no texture asset yet)
- * - Wall box meshes defining the room boundary
- * - SortingComputer at a fixed position (Mission 001 trigger point)
- * - PlayerAvatar rendered at spawn position
- * - Click-to-move: clicking the floor logs the target position and will
- *   eventually drive avatar movement via the PlayerAvatar component.
+ * Phase 1 pass: PBR-tuned materials (varied roughness/metalness instead of
+ * flat slabs) and IBL-reactive surfaces (Task 10's HDRI now visibly informs
+ * every reflection here). Geometry remains primitive boxes/planes — real
+ * models are a follow-on art-production task (see Phase 1 preamble).
  *
  * On SortingComputer click: dispatches WorldEvent { type: "object-interact",
- * objectId: "sorting-computer" }. The parent (WorldCanvas) routes this event
- * up to the student app, which triggers the mission entry transition.
- *
- * Future living-world hooks:
- * - House banners (driven by House Influence system, ADR-019)
- * - Seasonal event decorations
- * - NPC presence (scheduled by Railway)
+ * objectId: "sorting-computer" } AND calls enterMissionMode() directly, so
+ * the world visibly quiets (spec §4) the instant the student commits to a
+ * mission, before the mission UI even mounts.
  */
-
 import { SortingComputer } from '../objects/SortingComputer';
 import { PlayerAvatar } from '../objects/PlayerAvatar';
+import { MasteryBuilding } from '../objects/MasteryBuilding';
 import type { SceneProps } from '../types';
 import { useWorldStore } from '../state/worldStore';
 
@@ -39,7 +32,7 @@ export function GreatHall({ onEvent, displayName = 'Explorer', house }: ScenePro
 
   return (
     <group>
-      {/* Floor — gray stone placeholder */}
+      {/* Floor — warm stone, higher roughness so it scatters the IBL softly rather than mirroring it. */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         receiveShadow
@@ -47,46 +40,45 @@ export function GreatHall({ onEvent, displayName = 'Explorer', house }: ScenePro
         onClick={handleFloorClick as any}
       >
         <planeGeometry args={[30, 30]} />
-        <meshStandardMaterial color="#475569" roughness={0.9} />
+        <meshStandardMaterial color="#5b5147" roughness={0.95} metalness={0.02} />
       </mesh>
 
       {/* Back wall */}
       <mesh position={[0, 5, -15]} receiveShadow castShadow>
         <boxGeometry args={[30, 10, 1]} />
-        <meshStandardMaterial color="#334155" roughness={0.8} />
+        <meshStandardMaterial color="#3f3a52" roughness={0.85} metalness={0.05} />
       </mesh>
 
       {/* Left wall */}
       <mesh position={[-15, 5, 0]} receiveShadow castShadow>
         <boxGeometry args={[1, 10, 30]} />
-        <meshStandardMaterial color="#334155" roughness={0.8} />
+        <meshStandardMaterial color="#3f3a52" roughness={0.85} metalness={0.05} />
       </mesh>
 
       {/* Right wall */}
       <mesh position={[15, 5, 0]} receiveShadow castShadow>
         <boxGeometry args={[1, 10, 30]} />
-        <meshStandardMaterial color="#334155" roughness={0.8} />
+        <meshStandardMaterial color="#3f3a52" roughness={0.85} metalness={0.05} />
       </mesh>
 
       {/* Front wall — split to leave entrance gap */}
       <mesh position={[-8, 5, 15]} receiveShadow castShadow>
         <boxGeometry args={[14, 10, 1]} />
-        <meshStandardMaterial color="#334155" roughness={0.8} />
+        <meshStandardMaterial color="#3f3a52" roughness={0.85} metalness={0.05} />
       </mesh>
       <mesh position={[8, 5, 15]} receiveShadow castShadow>
         <boxGeometry args={[14, 10, 1]} />
-        <meshStandardMaterial color="#334155" roughness={0.8} />
+        <meshStandardMaterial color="#3f3a52" roughness={0.85} metalness={0.05} />
       </mesh>
 
       {/* Sorting Computer — Mission 001 trigger (ADR-027 / hero slice) */}
       <SortingComputer position={[0, 0.75, -10]} onEvent={onEvent} />
 
+      {/* Mastery-gated holding — appears once the student unlocks it (Task 14). Renders nothing until then. */}
+      <MasteryBuilding position={[6, 0, -8]} holdingId="fractions-observatory" />
+
       {/* Player avatar */}
-      <PlayerAvatar
-        displayName={displayName}
-        house={house}
-        initialPosition={[0, 0.9, 8]}
-      />
+      <PlayerAvatar displayName={displayName} house={house} initialPosition={[0, 0.9, 8]} />
     </group>
   );
 }
