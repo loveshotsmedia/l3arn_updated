@@ -19,6 +19,8 @@ import type {
   SelectableHouse,
   StartMissionResponse,
   CompleteMissionResponse,
+  GetHoldingsResponse,
+  UnlockHoldingResponse,
 } from "@l3arn/shared-types";
 
 const TOKEN_KEY = "l3arn_session_token";
@@ -263,6 +265,57 @@ async function authedPost<T>(path: string, body: unknown): Promise<ApiOutcome<T>
       message: "Could not reach the Academy. Check your connection and try again.",
     };
   }
+}
+
+async function authedGet<T>(path: string): Promise<ApiOutcome<T>> {
+  const base = railwayBaseUrl();
+  if (!base) return NOT_CONFIGURED;
+
+  const token = getSessionToken();
+  if (!token) {
+    return {
+      ok: false,
+      status: 401,
+      error: "SESSION_TOKEN_MISSING",
+      message: "Your session could not be found. Ask a parent to start a new one.",
+    };
+  }
+
+  try {
+    const res = await fetch(`${base}${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const { error, message } = await parseError(res);
+      return { ok: false, status: res.status, error, message };
+    }
+    return { ok: true, data: (await res.json()) as T };
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      error: "NETWORK_ERROR",
+      message: "Could not reach the Academy. Check your connection and try again.",
+    };
+  }
+}
+
+// ── World holdings (mastery-gated buildings, spec §3.4) ────────────────────────
+
+/** Fetch every holding (mastery-gated building) the student has unlocked. */
+export function getHoldings(): Promise<ApiOutcome<GetHoldingsResponse>> {
+  return authedGet<GetHoldingsResponse>("/api/student/session/holdings");
+}
+
+/** Unlock a holding. Best-effort — callers should treat failure as non-fatal (the mission still counts as complete). */
+export function unlockHolding(
+  holdingId: string,
+  unlockedByMissionId: string,
+): Promise<ApiOutcome<UnlockHoldingResponse>> {
+  return authedPost<UnlockHoldingResponse>("/api/student/session/holdings", {
+    holdingId,
+    unlockedByMissionId,
+  });
 }
 
 /** Start a mission: backend compiles (validated/fallback) + creates the attempt. */

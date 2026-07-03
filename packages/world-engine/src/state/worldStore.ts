@@ -40,6 +40,17 @@ interface WorldState {
   qualityTier: DeviceTier;
   dpr: number;
 
+  /**
+   * Holdings the student has unlocked (spec §3.4 "Mastery Makes the World").
+   * Hydrated from Railway GET /holdings on academy load; appended to when a
+   * mission completion unlocks a new holding. MasteryBuilding reads this to
+   * decide whether to render — the absence of an id IS the "not yet mastered"
+   * state (no locked/greyed placeholder).
+   */
+  unlockedHoldingIds: string[];
+  setUnlockedHoldingIds: (ids: string[]) => void;
+  addUnlockedHoldingId: (id: string) => void;
+
   ensurePlayerEntity: (initialPosition: [number, number, number], houseColor: string) => number;
   setMoveTarget: (x: number, y: number, z: number) => void;
   clearMoveTarget: () => void;
@@ -76,6 +87,15 @@ export const useWorldStore = create<WorldState>((set, get) => ({
 
   qualityTier: 'MED',
   dpr: 1.5,
+
+  unlockedHoldingIds: [],
+  setUnlockedHoldingIds: (ids) => set({ unlockedHoldingIds: ids }),
+  addUnlockedHoldingId: (id) =>
+    set((state) =>
+      state.unlockedHoldingIds.includes(id)
+        ? state
+        : { unlockedHoldingIds: [...state.unlockedHoldingIds, id] },
+    ),
 
   ensurePlayerEntity: (initialPosition, houseColor) => {
     const existing = get().playerEntity;

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { WorldCanvas, useWorldStore } from "@l3arn/world-engine";
 import type { SceneKey, WorldEvent } from "@l3arn/world-engine";
-import { getVerifiedIdentity } from "../../../lib/student-session";
+import { getVerifiedIdentity, getHoldings } from "../../../lib/student-session";
 import { MissionOverlay } from "./MissionOverlay";
 
 type RealHouse = "Valkryn" | "Lyrion" | "Novari" | "Cytrex";
@@ -26,6 +26,16 @@ export default function AcademyPage() {
     if (verified) {
       setDisplayName(verified.displayName);
       setHouse(asRealHouse(verified.house));
+      // Hydrate mastery-gated holdings so the Great Hall renders any buildings
+      // this student has already unlocked (spec §3.4). Must run BEFORE the early
+      // return below, or verified (real) users would never load their holdings.
+      getHoldings().then((result) => {
+        if (result.ok) {
+          useWorldStore
+            .getState()
+            .setUnlockedHoldingIds(result.data.holdings.map((h) => h.holdingId));
+        }
+      });
       return;
     }
     if (process.env.NODE_ENV !== "production") {
