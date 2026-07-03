@@ -9,6 +9,7 @@ import { useRef, useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
 import CameraControlsImpl from 'camera-controls';
 import * as THREE from 'three';
+import { useWorldStore } from '../state/worldStore';
 
 CameraControlsImpl.install({ THREE });
 
@@ -48,6 +49,29 @@ export function CameraRig() {
       controls.dispose();
     };
   }, [camera, gl, invalidate]);
+
+  // Explore -> Mission "settle" (spec §8.5): when SortingComputer (or any
+  // interactable) requests a settle, glide the camera toward it. Respects
+  // prefers-reduced-motion by cutting instantly instead of animating.
+  useEffect(() => {
+    const unsubscribe = useWorldStore.subscribe((state) => {
+      const target = state.settleTarget;
+      if (!target || !controlsRef.current) return;
+
+      const prefersReducedMotion =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      const [tx, ty, tz] = target;
+      controlsRef.current.setLookAt(
+        tx + 4, ty + 3, tz + 6, // slightly pulled back and above the interactable
+        tx, ty, tz,
+        !prefersReducedMotion, // enableTransition — instant cut if the user asked for reduced motion
+      );
+      useWorldStore.getState().clearSettle();
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let raf: number;

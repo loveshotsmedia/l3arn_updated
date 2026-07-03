@@ -24,6 +24,7 @@ export function SortingComputer({ position = [0, 0.75, 0], onEvent }: SortingCom
   function handleClick(e: { stopPropagation: () => void }) {
     e.stopPropagation();
     useWorldStore.getState().enterMissionMode();
+    useWorldStore.getState().requestSettle(position);
     onEvent({
       type: 'object-interact',
       objectId: 'sorting-computer',
