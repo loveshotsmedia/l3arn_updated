@@ -31,6 +31,8 @@ export * from "./world-event.schema";
 export * from "./evidence.schema";
 export * from "./rewards.schema";
 export * from "./parent-report.schema";
+// world-holdings: string IDs only; no cross-schema imports (mastery-gated buildings, spec §3.4).
+export * from "./world-holdings.schema";
 
 // ── Cross-cutting contracts ───────────────────────────────────────────────────
 export * from "./permissions.schema";

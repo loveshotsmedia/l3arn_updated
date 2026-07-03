@@ -6,8 +6,10 @@ import {
   startMission,
   completeMission,
   updateCalibration,
+  unlockHolding,
   type CompleteMissionInput,
 } from "../../../../lib/student-session";
+import { useWorldStore } from "@l3arn/world-engine";
 import type { StartMissionResponse, CompleteMissionResponse } from "@l3arn/shared-types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -526,12 +528,23 @@ export function MissionExperience({ forcedMissionId, onExit }: MissionExperience
     if (outcome.ok) {
       setResult(outcome.data);
       setPhase("done");
+      // Mastery Makes the World (spec §3.4): demonstrated mastery of Mission 001
+      // unlocks the "Fractions Observatory" holding, which then appears in the
+      // Great Hall. Best-effort — a failure here must NOT block the
+      // mission-complete screen; the authoritative mastery record
+      // (completeMission's response) is already saved.
+      if (missionId === "mission-001") {
+        const unlockResult = await unlockHolding("fractions-observatory", missionId);
+        if (unlockResult.ok) {
+          useWorldStore.getState().addUnlockedHoldingId("fractions-observatory");
+        }
+      }
       updateCalibration().catch(() => {}); // best-effort: update calibration snapshot
     } else {
       setErrorMessage(outcome.message);
       setPhase("error");
     }
-  }, [mission, totalAttempts, hintsUsed]);
+  }, [mission, totalAttempts, hintsUsed, missionId]);
 
   // When stepIndex advances past 5, kick off completion
   useEffect(() => {
