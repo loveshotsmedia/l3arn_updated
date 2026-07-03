@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { WorldCanvas } from "@l3arn/world-engine";
+import { WorldCanvas, useWorldStore } from "@l3arn/world-engine";
 import type { SceneKey, WorldEvent } from "@l3arn/world-engine";
 import { getVerifiedIdentity } from "../../../lib/student-session";
+import { MissionOverlay } from "./MissionOverlay";
 
 type RealHouse = "Valkryn" | "Lyrion" | "Novari" | "Cytrex";
 const REAL_HOUSES: RealHouse[] = ["Valkryn", "Lyrion", "Novari", "Cytrex"];
@@ -12,8 +12,8 @@ const asRealHouse = (h: string | null | undefined): RealHouse | undefined =>
   h && (REAL_HOUSES as string[]).includes(h) ? (h as RealHouse) : undefined;
 
 export default function AcademyPage() {
-  const router = useRouter();
   const [currentScene] = useState<SceneKey>("great-hall");
+  const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
 
   // Identity authority is the verified session (sessionStorage), never localStorage.
   // Loaded in an effect to avoid SSR/hydration mismatch. Dev-only localStorage
@@ -39,7 +39,7 @@ export default function AcademyPage() {
     switch (event.type) {
       case "object-interact":
         if (event.objectId === "sorting-computer") {
-          router.push("/student/mission/mission-001");
+          setActiveMissionId("mission-001");
         }
         break;
       case "avatar-move-requested":
@@ -49,13 +49,18 @@ export default function AcademyPage() {
         console.log("[L3ARN] Scene transition:", event.fromScene, "→", event.toScene);
         break;
       case "mission-trigger":
-        router.push(`/student/mission/${event.missionId}`);
+        setActiveMissionId(event.missionId);
         break;
       default: {
         const _exhaustive: never = event;
         console.warn("[L3ARN] Unhandled world event:", _exhaustive);
       }
     }
+  }
+
+  function handleMissionExit() {
+    setActiveMissionId(null);
+    useWorldStore.getState().exitMissionMode();
   }
 
   return (
@@ -71,6 +76,9 @@ export default function AcademyPage() {
           Click anywhere to move · Click the Sorting Computer to begin
         </div>
       </div>
+      {activeMissionId && (
+        <MissionOverlay missionId={activeMissionId} onClose={handleMissionExit} />
+      )}
     </div>
   );
 }
