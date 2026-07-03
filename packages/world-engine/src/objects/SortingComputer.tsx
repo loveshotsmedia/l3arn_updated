@@ -11,6 +11,7 @@ import { useRef } from 'react';
 import { Mesh } from 'three';
 import { Html } from '@react-three/drei';
 import type { WorldEvent } from '../types';
+import { useWorldStore } from '../state/worldStore';
 
 interface SortingComputerProps {
   position?: [number, number, number];
@@ -22,6 +23,7 @@ export function SortingComputer({ position = [0, 0.75, 0], onEvent }: SortingCom
 
   function handleClick(e: { stopPropagation: () => void }) {
     e.stopPropagation();
+    useWorldStore.getState().enterMissionMode();
     onEvent({
       type: 'object-interact',
       objectId: 'sorting-computer',
@@ -41,7 +43,7 @@ export function SortingComputer({ position = [0, 0.75, 0], onEvent }: SortingCom
         <meshStandardMaterial
           color="#1e293b"
           emissive="#6366f1"
-          emissiveIntensity={0.6}
+          emissiveIntensity={0.9}
           roughness={0.4}
           metalness={0.8}
         />
@@ -53,7 +55,7 @@ export function SortingComputer({ position = [0, 0.75, 0], onEvent }: SortingCom
         <meshStandardMaterial
           color="#818cf8"
           emissive="#818cf8"
-          emissiveIntensity={1.2}
+          emissiveIntensity={1.6}
         />
       </mesh>
 
