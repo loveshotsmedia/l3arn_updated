@@ -130,6 +130,18 @@ function resolveAiTimeoutMs(): number {
 }
 
 /**
+ * Model for the fast-start (student3dMission-only) call. Latency-critical: the
+ * student is staring at "Preparing your mission…" while this runs, and measured
+ * generation on the standard model was 25-35s vs the 3-6s product target. A
+ * smaller/faster model is acceptable here because the output is narrow,
+ * schema-validated (Zod), and safety-bounded by the prompt. Defaults to
+ * ANTHROPIC_MODEL so behavior is unchanged unless ops opts in.
+ */
+function resolveStartModelVersion(): string {
+  return process.env.MISSION_START_MODEL || resolveModelVersion();
+}
+
+/**
  * A generation error that retrying the identical call cannot fix: a request
  * timeout or a user/programmatic abort. Detected by both instanceof AND
  * name/message duck-typing — in the Railway runtime the SDK timeout did NOT
@@ -507,7 +519,7 @@ export class MissionCompiler {
   async compileStart(
     input: MissionCompilerInput,
   ): Promise<MissionStartCompilerOutput> {
-    const modelVersion = resolveModelVersion();
+    const modelVersion = resolveStartModelVersion();
     const aiTimeoutMs = resolveAiTimeoutMs();
     const traceId = uuidv4();
     const requestedAt = new Date().toISOString();
@@ -526,43 +538,58 @@ export class MissionCompiler {
     });
 
     const result: AIOutputResult = await withAIRetry(
-      // generate(): request only the narrow student3dMission tool
+      // generate(): request only the narrow student3dMission tool.
+      //
+      // STREAMED, not create(): a non-streaming request sits idle on the wire
+      // for the entire server-side generation (~8-30s), which (a) raced the
+      // request timeout and (b) got its connection killed by intermediaries in
+      // the Railway runtime ("Premature close" — 0/2 AI successes in prod).
+      // Streaming keeps SSE bytes flowing from ~1s in, so neither applies.
+      // The wall-clock bound moves to an explicit AbortController because the
+      // SDK's `timeout` only bounds time-to-first-byte on streamed requests;
+      // an abort rejects with APIUserAbortError → non-retryable → fallback.
       async () => {
-        const response = await this.client.messages.create(
-          {
-            // Only one section → 4000 output tokens is ample headroom.
-            model: modelVersion,
-            max_tokens: 4000,
-            system: systemPrompt,
-            messages: [{ role: "user", content: userMessage }],
-            tools: [
-              {
-                name: "generate_student_3d_mission",
-                description:
-                  "Generate the student-facing 3D mission for Mission 001: story hook, " +
-                  "companion dialogue, ordered tasks, and reward preview.",
-                input_schema: MISSION_3D_JSON_SCHEMA,
-              },
-            ],
-            tool_choice: { type: "tool", name: "generate_student_3d_mission" },
-          },
-          {
-            // Same request-bounding contract as compile(): withAIRetry is the
-            // single retry authority (SDK maxRetries: 0).
-            timeout: aiTimeoutMs,
-            maxRetries: 0,
-          },
-        );
-
-        const toolUseBlock = response.content.find(
-          (block) => block.type === "tool_use",
-        );
-        if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
-          throw new Error(
-            "Claude did not return a tool_use block for generate_student_3d_mission",
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), aiTimeoutMs);
+        try {
+          const stream = this.client.messages.stream(
+            {
+              // Only one section → 4000 output tokens is ample headroom.
+              model: modelVersion,
+              max_tokens: 4000,
+              system: systemPrompt,
+              messages: [{ role: "user", content: userMessage }],
+              tools: [
+                {
+                  name: "generate_student_3d_mission",
+                  description:
+                    "Generate the student-facing 3D mission for Mission 001: story hook, " +
+                    "companion dialogue, ordered tasks, and reward preview.",
+                  input_schema: MISSION_3D_JSON_SCHEMA,
+                },
+              ],
+              tool_choice: { type: "tool", name: "generate_student_3d_mission" },
+            },
+            {
+              // withAIRetry is the single retry authority (SDK maxRetries: 0).
+              signal: controller.signal,
+              maxRetries: 0,
+            },
           );
+          const response = await stream.finalMessage();
+
+          const toolUseBlock = response.content.find(
+            (block) => block.type === "tool_use",
+          );
+          if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
+            throw new Error(
+              "Claude did not return a tool_use block for generate_student_3d_mission",
+            );
+          }
+          return toolUseBlock.input;
+        } finally {
+          clearTimeout(timer);
         }
-        return toolUseBlock.input;
       },
 
       // validate(): narrow 3D-only Zod schema

@@ -46,16 +46,34 @@ const VALID_3D = {
   rewardPreviewLabel: "10 Moolah + 50 XP",
 };
 
-function fakeClient(behavior: () => Promise<unknown>) {
+type StreamBehavior = (
+  params: Record<string, unknown>,
+  opts: { signal?: AbortSignal; maxRetries?: number },
+) => { finalMessage: () => Promise<unknown> };
+
+/**
+ * compileStart streams the response (client.messages.stream + finalMessage) so
+ * bytes flow continuously — a non-streaming create() sat idle for the full
+ * generation and got killed by intermediaries ("Premature close") or the
+ * request timeout in production.
+ */
+function fakeStreamClient(behavior: StreamBehavior) {
   return {
-    messages: { create: behavior },
+    messages: { stream: behavior },
   } as unknown as import("@anthropic-ai/sdk").default;
 }
 
+afterEach(() => {
+  delete process.env.MISSION_START_MODEL;
+  delete process.env.MISSION_AI_TIMEOUT_MS;
+});
+
 describe("MissionCompiler.compileStart", () => {
-  it("returns AI content (usedFallback false) when the tool call validates", async () => {
-    const client = fakeClient(async () => ({
-      content: [{ type: "tool_use", input: VALID_3D }],
+  it("returns AI content (usedFallback false) via the streaming client", async () => {
+    const client = fakeStreamClient(() => ({
+      finalMessage: async () => ({
+        content: [{ type: "tool_use", input: VALID_3D }],
+      }),
     }));
     const compiler = new MissionCompiler(undefined, client);
     const out = await compiler.compileStart(INPUT);
@@ -63,14 +81,83 @@ describe("MissionCompiler.compileStart", () => {
     expect(out.student3dMission.storyHook).toContain("Ziggy");
     expect(out.envelope.result.status).toBe("validated");
     // Audit envelope must attribute fast-start content to the 3D prompt version.
-    expect(out.envelope.promptTemplateVersion).toBe("3d-0.1.0");
+    expect(out.envelope.promptTemplateVersion).toBe("3d-0.2.0");
   });
 
-  it("falls back to the student3dMission slice on a timeout (short-circuit, one attempt)", async () => {
+  it("uses MISSION_START_MODEL for the call and records it in the envelope", async () => {
+    process.env.MISSION_START_MODEL = "claude-haiku-4-5";
+    let modelUsed: unknown;
+    const client = fakeStreamClient((params) => {
+      modelUsed = params.model;
+      return {
+        finalMessage: async () => ({
+          content: [{ type: "tool_use", input: VALID_3D }],
+        }),
+      };
+    });
+    const compiler = new MissionCompiler(undefined, client);
+    const out = await compiler.compileStart(INPUT);
+    expect(modelUsed).toBe("claude-haiku-4-5");
+    expect(out.envelope.modelVersion).toBe("claude-haiku-4-5");
+  });
+
+  it("falls back to ANTHROPIC_MODEL when MISSION_START_MODEL is unset", async () => {
+    let modelUsed: unknown;
+    const client = fakeStreamClient((params) => {
+      modelUsed = params.model;
+      return {
+        finalMessage: async () => ({
+          content: [{ type: "tool_use", input: VALID_3D }],
+        }),
+      };
+    });
+    const compiler = new MissionCompiler(undefined, client);
+    await compiler.compileStart(INPUT);
+    expect(modelUsed).toBe("claude-sonnet-4-6");
+  });
+
+  it("aborts a hung stream at MISSION_AI_TIMEOUT_MS and falls back after one attempt", async () => {
+    process.env.MISSION_AI_TIMEOUT_MS = "100";
     let calls = 0;
-    const client = fakeClient(async () => {
+    // Simulates the real SDK: finalMessage() rejects with APIUserAbortError
+    // when the caller's AbortSignal fires. A stream that never resolves
+    // otherwise = a hung upstream.
+    const client = fakeStreamClient((_params, opts) => {
       calls++;
-      throw { name: "APIConnectionTimeoutError", message: "Request timed out." };
+      return {
+        finalMessage: () =>
+          new Promise((_resolve, reject) => {
+            opts.signal?.addEventListener("abort", () =>
+              reject(
+                Object.assign(new Error("Request was aborted."), {
+                  name: "APIUserAbortError",
+                }),
+              ),
+            );
+          }),
+      };
+    });
+    const compiler = new MissionCompiler(undefined, client);
+    const t0 = Date.now();
+    const out = await compiler.compileStart(INPUT);
+    const elapsed = Date.now() - t0;
+    expect(calls).toBe(1);
+    expect(out.usedFallback).toBe(true);
+    expect(elapsed).toBeLessThan(2000);
+    expect(out.student3dMission.worldRoomId).toBe(
+      getMission001FallbackStudent3d().worldRoomId,
+    );
+  });
+
+  it("falls back on a timeout error (short-circuit, one attempt)", async () => {
+    let calls = 0;
+    const client = fakeStreamClient(() => {
+      calls++;
+      return {
+        finalMessage: async () => {
+          throw { name: "APIConnectionTimeoutError", message: "Request timed out." };
+        },
+      };
     });
     const compiler = new MissionCompiler(undefined, client);
     const out = await compiler.compileStart(INPUT);
