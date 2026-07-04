@@ -215,11 +215,16 @@ function CurriculumSetupContent() {
       // Note: child_permissions table does not yet have a focus_subjects column.
       // This upsert saves the merged blocked_topics. Focus subjects are stored
       // in a comment pending schema addition.
-      const { error: permError } = await supabase.from("child_permissions").upsert({
-        child_profile_id: childProfileId,
-        blocked_topics: mergedTopics,
-        updated_by_parent_account_id: session.user.id,
-      });
+      const { error: permError } = await supabase.from("child_permissions").upsert(
+        {
+          child_profile_id: childProfileId,
+          blocked_topics: mergedTopics,
+          updated_by_parent_account_id: session.user.id,
+        },
+        // Resolve on the child_profile_id UNIQUE constraint (001:516), not the PK —
+        // the row already exists by this step, so a PK-targeted upsert 409s.
+        { onConflict: "child_profile_id" },
+      );
 
       if (permError) throw permError;
 
