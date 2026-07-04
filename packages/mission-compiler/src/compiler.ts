@@ -114,10 +114,11 @@ function resolveModelVersion(): string {
  * mission promptly.
  *
  * Env-tunable via MISSION_AI_TIMEOUT_MS so ops can adjust for observed generation
- * latency without a redeploy. Default 90s: generous for a healthy structured
- * generation, but a hard bound on the degraded case.
+ * latency without a redeploy. Default 30s: the fast-start call generates only the
+ * student3dMission section, so it finishes well under this; a hard bound on the
+ * degraded case.
  */
-const DEFAULT_AI_TIMEOUT_MS = 90_000;
+const DEFAULT_AI_TIMEOUT_MS = 30_000; // small student3dMission call; rarely approached
 function resolveAiTimeoutMs(): number {
   const raw = process.env.MISSION_AI_TIMEOUT_MS;
   if (!raw) return DEFAULT_AI_TIMEOUT_MS;
