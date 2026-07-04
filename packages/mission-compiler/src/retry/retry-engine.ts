@@ -58,6 +58,7 @@ export async function withAIRetry<T>(
   isFatalGenerationError?: (error: unknown) => boolean,
 ): Promise<AIOutputResult> {
   const failedAttempts: AIValidationAttempt[] = [];
+  let shortCircuited = false;
 
   for (let attempt = 1; attempt <= AI_MAX_RETRY_ATTEMPTS; attempt++) {
     let raw: unknown;
@@ -89,6 +90,7 @@ export async function withAIRetry<T>(
         console.error(
           `[retry-engine] Attempt ${attempt}/${AI_MAX_RETRY_ATTEMPTS} — non-retryable generation error; using fallback immediately.`,
         );
+        shortCircuited = true;
         break;
       }
 
@@ -161,16 +163,17 @@ export async function withAIRetry<T>(
       system: "mission-compiler",
       msg: "AI generation failed — using static fallback content",
       fallbackId: fallback.id,
-      attemptCount: AI_MAX_RETRY_ATTEMPTS,
+      attemptCount: failedAttempts.length,
+      shortCircuited,
       errorSummary: failedAttempts.map((a) => `[${a.attemptNumber}] ${a.failureReason}`).join(" | "),
     }),
   );
 
-  // The AIOutputResultSchema requires exactly 3 attempts in the failed-with-fallback branch.
-  // This assertion is safe because we only reach here after AI_MAX_RETRY_ATTEMPTS (3) loops.
-  if (failedAttempts.length !== AI_MAX_RETRY_ATTEMPTS) {
-    // Defensive: pad if generation errors caused fewer records than expected.
-    // Should not happen under normal conditions.
+  // The AIOutputResultSchema requires exactly 3 attempt records in the
+  // failed-with-fallback branch; a fatal-error short-circuit legitimately
+  // produces fewer and gets padded below. Only a non-short-circuit shortfall
+  // is unexpected.
+  if (!shortCircuited && failedAttempts.length !== AI_MAX_RETRY_ATTEMPTS) {
     console.error(
       `[retry-engine] Unexpected attempt count: ${failedAttempts.length}. Expected ${AI_MAX_RETRY_ATTEMPTS}.`,
     );
