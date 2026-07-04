@@ -117,15 +117,29 @@ function resolveAiTimeoutMs(): number {
 
 /**
  * A generation error that retrying the identical call cannot fix: a request
- * timeout or a user/programmatic abort. These short-circuit straight to the
- * fallback rather than burning all AI_MAX_RETRY_ATTEMPTS (which would multiply
- * the wait). Genuine transient issues (validation/ZodError) are still retried.
+ * timeout or a user/programmatic abort. Detected by both instanceof AND
+ * name/message duck-typing — in the Railway runtime the SDK timeout did NOT
+ * match instanceof alone (PR #20 prod miss), so it retried 3× instead of
+ * short-circuiting. These go straight to the safe fallback; validation
+ * (ZodError) failures are still retried.
+ *
+ * Note: the message match also short-circuits transient server-side 504/408
+ * gateway timeouts — intentional, to bound worst-case wall-clock latency; the
+ * fallback is a safe, valid mission, so recovering via retry isn't worth the wait.
  */
-function isNonRetryableAiError(error: unknown): boolean {
-  return (
-    error instanceof Anthropic.APIConnectionTimeoutError ||
-    error instanceof Anthropic.APIUserAbortError
-  );
+export function isNonRetryableAiError(error: unknown): boolean {
+  if (error instanceof Anthropic.APIConnectionTimeoutError) return true;
+  if (error instanceof Anthropic.APIUserAbortError) return true;
+  const name = (error as { name?: unknown } | null)?.name;
+  if (
+    typeof name === "string" &&
+    ["APIConnectionTimeoutError", "APIUserAbortError", "AbortError", "TimeoutError"].includes(name)
+  ) {
+    return true;
+  }
+  const message = (error as { message?: unknown } | null)?.message;
+  if (typeof message === "string" && /timed out|timeout|aborted|abort/i.test(message)) return true;
+  return false;
 }
 
 // ─── Input / Output Types ─────────────────────────────────────────────────────
