@@ -77,13 +77,14 @@ const AIParentPlanSchema = z.object({
 
 // ─── Output 2: 3D Mission ─────────────────────────────────────────────────────
 
-const AI3dMissionSchema = z.object({
+export const AI3dMissionSchema = z.object({
   storyHook: z.string().min(1),
   worldRoomId: z.string().min(1),
   companionDialogue: z.array(CompanionDialogueLineSchema).min(1),
   tasks: z.array(MissionTaskSchema).min(1),
   rewardPreviewLabel: z.string().min(1),
 });
+export type AI3dMission = z.infer<typeof AI3dMissionSchema>;
 
 // ─── Output 3: Interactive Lite ───────────────────────────────────────────────
 
