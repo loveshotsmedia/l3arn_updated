@@ -1,13 +1,12 @@
 /**
  * GreatHall — Main arrival scene for the L3ARN Academy.
  *
- * Visual pass (Explore-mode enhancement, spec §7): procedural stone-tile
- * floor, instanced column rows + rafters open to the visible dawn sky,
- * four House banners, glowing clerestory windows, entrance framing, a dais
- * under the Sorting Computer, torch sconces with live (mission-gated)
- * flicker, and warm depth fog. Geometry is still all procedural primitives —
- * composed for readability rather than replaced by shipped models, so the
- * asset pipeline/licensing gate stays untouched.
+ * Visual pass 2 (Explore-mode enhancement, spec §7): coursed stone-block
+ * walls, ceremonial carpet runner from the entrance to the dais, hero
+ * Sorting Computer terminal, wall benches, drifting dust motes — on top of
+ * pass 1's tiled floor, columns + rafters, House banners, windows, torches,
+ * and warm fog. Everything remains procedural primitives — no shipped
+ * assets, so the asset pipeline/licensing gate stays untouched.
  *
  * On SortingComputer click: dispatches WorldEvent { type: "object-interact",
  * objectId: "sorting-computer" } AND calls enterMissionMode() directly, so
@@ -22,9 +21,16 @@ import { PlayerAvatar } from '../objects/PlayerAvatar';
 import { MasteryBuilding } from '../objects/MasteryBuilding';
 import { HallArchitecture, TORCH_MOUNTS } from '../objects/HallArchitecture';
 import { TorchSconces } from '../objects/TorchSconces';
-import { createStoneTileTexture } from '../art/proceduralTextures';
+import { DustMotes } from '../objects/DustMotes';
+import {
+  createStoneTileTexture,
+  createStoneBlockTexture,
+  createRunnerTexture,
+} from '../art/proceduralTextures';
 import type { SceneProps } from '../types';
 import { useWorldStore } from '../state/worldStore';
+
+const WALL_MATERIAL_PROPS = { roughness: 0.85, metalness: 0.05 } as const;
 
 export function GreatHall({ onEvent, displayName = 'Explorer', house }: SceneProps) {
   const setMoveTarget = useWorldStore((s) => s.setMoveTarget);
@@ -39,10 +45,19 @@ export function GreatHall({ onEvent, displayName = 'Explorer', house }: ScenePro
     };
   }, [scene]);
 
-  // Runtime-generated stone floor (deterministic; null during SSR — material
-  // then falls back to its flat color, which only ever happens off-client).
+  // Runtime-generated textures (deterministic; null during SSR — materials
+  // then fall back to their flat colors, which only ever happens off-client).
   const floorTexture = useMemo(() => createStoneTileTexture(), []);
-  useEffect(() => () => floorTexture?.dispose(), [floorTexture]);
+  const wallTexture = useMemo(() => createStoneBlockTexture(), []);
+  const runnerTexture = useMemo(() => createRunnerTexture(), []);
+  useEffect(
+    () => () => {
+      floorTexture?.dispose();
+      wallTexture?.dispose();
+      runnerTexture?.dispose();
+    },
+    [floorTexture, wallTexture, runnerTexture],
+  );
 
   function handleFloorClick(e: { stopPropagation: () => void; point?: { x: number; y: number; z: number } }) {
     e.stopPropagation();
@@ -72,42 +87,84 @@ export function GreatHall({ onEvent, displayName = 'Explorer', house }: ScenePro
         />
       </mesh>
 
+      {/* Ceremonial runner — entrance to dais. Clicks pass through to the floor
+          logic via the same handler, so click-to-move works on the carpet too. */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.015, 3.2]}
+        receiveShadow
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onClick={handleFloorClick as any}
+      >
+        <planeGeometry args={[3.4, 20.4]} />
+        <meshStandardMaterial
+          color={runnerTexture ? '#ffffff' : '#2b2455'}
+          map={runnerTexture ?? undefined}
+          roughness={0.9}
+          metalness={0.0}
+        />
+      </mesh>
+
       {/* Back wall */}
       <mesh position={[0, 5, -15]} receiveShadow castShadow>
         <boxGeometry args={[30, 10, 1]} />
-        <meshStandardMaterial color="#4d4560" roughness={0.85} metalness={0.05} />
+        <meshStandardMaterial
+          color={wallTexture ? '#ffffff' : '#4d4560'}
+          map={wallTexture ?? undefined}
+          {...WALL_MATERIAL_PROPS}
+        />
       </mesh>
 
       {/* Left wall */}
       <mesh position={[-15, 5, 0]} receiveShadow castShadow>
         <boxGeometry args={[1, 10, 30]} />
-        <meshStandardMaterial color="#4d4560" roughness={0.85} metalness={0.05} />
+        <meshStandardMaterial
+          color={wallTexture ? '#ffffff' : '#4d4560'}
+          map={wallTexture ?? undefined}
+          {...WALL_MATERIAL_PROPS}
+        />
       </mesh>
 
       {/* Right wall */}
       <mesh position={[15, 5, 0]} receiveShadow castShadow>
         <boxGeometry args={[1, 10, 30]} />
-        <meshStandardMaterial color="#4d4560" roughness={0.85} metalness={0.05} />
+        <meshStandardMaterial
+          color={wallTexture ? '#ffffff' : '#4d4560'}
+          map={wallTexture ?? undefined}
+          {...WALL_MATERIAL_PROPS}
+        />
       </mesh>
 
       {/* Front wall — split to leave entrance gap */}
       <mesh position={[-8, 5, 15]} receiveShadow castShadow>
         <boxGeometry args={[14, 10, 1]} />
-        <meshStandardMaterial color="#4d4560" roughness={0.85} metalness={0.05} />
+        <meshStandardMaterial
+          color={wallTexture ? '#ffffff' : '#4d4560'}
+          map={wallTexture ?? undefined}
+          {...WALL_MATERIAL_PROPS}
+        />
       </mesh>
       <mesh position={[8, 5, 15]} receiveShadow castShadow>
         <boxGeometry args={[14, 10, 1]} />
-        <meshStandardMaterial color="#4d4560" roughness={0.85} metalness={0.05} />
+        <meshStandardMaterial
+          color={wallTexture ? '#ffffff' : '#4d4560'}
+          map={wallTexture ?? undefined}
+          {...WALL_MATERIAL_PROPS}
+        />
       </mesh>
 
-      {/* Architecture dressing — columns, rafters, banners, windows, entrance, dais (instanced). */}
+      {/* Architecture dressing — columns, rafters, banners, windows, entrance, dais, benches (instanced). */}
       <HallArchitecture />
 
       {/* Torch sconces — ambient life; flicker freezes in Mission mode (two-modes law). */}
       <TorchSconces mounts={TORCH_MOUNTS} />
 
-      {/* Sorting Computer — Mission 001 trigger (ADR-027 / hero slice), raised onto the dais. */}
-      <SortingComputer position={[0, 1.15, -10]} onEvent={onEvent} />
+      {/* Dust motes — drifting warm dust; drift freezes in Mission mode (two-modes law). */}
+      <DustMotes />
+
+      {/* Sorting Computer — Mission 001 trigger (ADR-027 / hero slice), standing on the dais.
+          The terminal's group origin is at its base, so y = the dais top surface (0.4). */}
+      <SortingComputer position={[0, 0.4, -10]} onEvent={onEvent} />
 
       {/* Mastery-gated holding — appears once the student unlocks it (Task 14). Renders nothing until then. */}
       <MasteryBuilding position={[6, 0, -8]} holdingId="fractions-observatory" />

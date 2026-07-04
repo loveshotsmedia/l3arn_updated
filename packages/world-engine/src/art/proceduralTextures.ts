@@ -95,3 +95,125 @@ export function createStoneTileTexture(options: StoneTileOptions = {}): CanvasTe
   texture.anisotropy = 8;
   return texture;
 }
+
+export interface StoneBlockOptions {
+  size?: number;
+  /** Block courses (rows) per canvas. */
+  courses?: number;
+  repeatX?: number;
+  repeatY?: number;
+  seed?: number;
+}
+
+/**
+ * Coursed stone-block wall texture: offset rows of blocks in a cool
+ * lavender-stone tone (matches the hall palette), mortar lines, per-block
+ * tint jitter. Same determinism + SSR rules as the floor texture.
+ */
+export function createStoneBlockTexture(options: StoneBlockOptions = {}): CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+
+  const { size = 512, courses = 6, repeatX = 5, repeatY = 1.65, seed = 4242 } = options;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const rand = mulberry32(seed);
+  const rowH = size / courses;
+  const blocksPerRow = 4;
+  const blockW = size / blocksPerRow;
+
+  // Mortar base
+  ctx.fillStyle = '#3a3448';
+  ctx.fillRect(0, 0, size, size);
+
+  for (let row = 0; row < courses; row++) {
+    const offset = row % 2 === 0 ? 0 : blockW / 2;
+    for (let b = -1; b < blocksPerRow + 1; b++) {
+      const v = 0.9 + rand() * 0.2;
+      const r = Math.round(0x5d * v);
+      const g = Math.round(0x54 * v);
+      const bl = Math.round(0x74 * v);
+      ctx.fillStyle = `rgb(${r},${g},${bl})`;
+
+      const inset = 2.5 + rand() * 2;
+      ctx.fillRect(
+        b * blockW + offset + inset,
+        row * rowH + inset,
+        blockW - inset * 2,
+        rowH - inset * 2,
+      );
+
+      // Worn edge highlight along the block top — cheap bevel read
+      ctx.fillStyle = `rgba(255,255,255,${0.04 + rand() * 0.05})`;
+      ctx.fillRect(b * blockW + offset + inset, row * rowH + inset, blockW - inset * 2, 3);
+    }
+  }
+
+  const texture = new CanvasTexture(canvas);
+  texture.wrapS = RepeatWrapping;
+  texture.wrapT = RepeatWrapping;
+  texture.repeat.set(repeatX, repeatY);
+  texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
+export interface RunnerOptions {
+  width?: number;
+  height?: number;
+  seed?: number;
+}
+
+/**
+ * Ceremonial carpet-runner texture: deep indigo field, gold double border,
+ * subtle diamond weave. Drawn once for a long strip (no repeat).
+ */
+export function createRunnerTexture(options: RunnerOptions = {}): CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+
+  const { width = 256, height = 1024, seed = 909 } = options;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const rand = mulberry32(seed);
+
+  // Indigo field with faint value noise so it reads as fabric, not plastic
+  ctx.fillStyle = '#2b2455';
+  ctx.fillRect(0, 0, width, height);
+  for (let i = 0; i < 900; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${0.015 + rand() * 0.02})`;
+    ctx.fillRect(rand() * width, rand() * height, 2 + rand() * 3, 2 + rand() * 3);
+  }
+
+  // Diamond weave down the center
+  ctx.strokeStyle = 'rgba(129, 140, 248, 0.16)';
+  ctx.lineWidth = 2;
+  const step = 64;
+  for (let y = -step; y < height + step; y += step) {
+    ctx.beginPath();
+    ctx.moveTo(width * 0.5, y);
+    ctx.lineTo(width * 0.78, y + step / 2);
+    ctx.lineTo(width * 0.5, y + step);
+    ctx.lineTo(width * 0.22, y + step / 2);
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  // Gold double border
+  ctx.strokeStyle = '#c9a24a';
+  ctx.lineWidth = 10;
+  ctx.strokeRect(14, 14, width - 28, height - 28);
+  ctx.lineWidth = 4;
+  ctx.strokeRect(34, 34, width - 68, height - 68);
+
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
