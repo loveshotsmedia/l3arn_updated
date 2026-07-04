@@ -92,6 +92,42 @@ function resolveModelVersion(): string {
   return model;
 }
 
+/**
+ * Per-request wall-clock ceiling for the Anthropic mission-generation call.
+ *
+ * Without this, a slow or stuck upstream request never rejects, so withAIRetry's
+ * retry→fallback safety net (which only fires on a *thrown* error) never engages —
+ * the student is left on "Preparing your mission…" indefinitely (the SDK's own
+ * default timeout is 10 minutes). With it, a request that exceeds the ceiling is
+ * aborted and rejects with APIConnectionTimeoutError, which flows straight to the
+ * pre-built static fallback (a valid Mission 001) so the student always gets a
+ * mission promptly.
+ *
+ * Env-tunable via MISSION_AI_TIMEOUT_MS so ops can adjust for observed generation
+ * latency without a redeploy. Default 90s: generous for a healthy structured
+ * generation, but a hard bound on the degraded case.
+ */
+const DEFAULT_AI_TIMEOUT_MS = 90_000;
+function resolveAiTimeoutMs(): number {
+  const raw = process.env.MISSION_AI_TIMEOUT_MS;
+  if (!raw) return DEFAULT_AI_TIMEOUT_MS;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_AI_TIMEOUT_MS;
+}
+
+/**
+ * A generation error that retrying the identical call cannot fix: a request
+ * timeout or a user/programmatic abort. These short-circuit straight to the
+ * fallback rather than burning all AI_MAX_RETRY_ATTEMPTS (which would multiply
+ * the wait). Genuine transient issues (validation/ZodError) are still retried.
+ */
+function isNonRetryableAiError(error: unknown): boolean {
+  return (
+    error instanceof Anthropic.APIConnectionTimeoutError ||
+    error instanceof Anthropic.APIUserAbortError
+  );
+}
+
 // ─── Input / Output Types ─────────────────────────────────────────────────────
 
 /**
@@ -197,6 +233,7 @@ export class MissionCompiler {
    */
   async compile(input: MissionCompilerInput): Promise<MissionCompilerOutput> {
     const modelVersion = resolveModelVersion();
+    const aiTimeoutMs = resolveAiTimeoutMs();
     const traceId = uuidv4();
     const requestedAt = new Date().toISOString();
 
@@ -237,6 +274,13 @@ export class MissionCompiler {
             },
           ],
           tool_choice: { type: "tool", name: "generate_mission" },
+        }, {
+          // Bound the request so a slow/stuck generation aborts and flows into the
+          // retry→fallback path instead of hanging (SDK default timeout is 10 min).
+          // maxRetries: 0 — withAIRetry is the single retry authority; the SDK's own
+          // retries would multiply the wall-clock wait on top of it.
+          timeout: aiTimeoutMs,
+          maxRetries: 0,
         });
 
         // Extract the tool_use block — SDK parses JSON for us
@@ -260,6 +304,9 @@ export class MissionCompiler {
 
       // getFallback(): the pre-built safe fallback for Mission 001
       () => MISSION_001_FALLBACK,
+
+      // A request timeout/abort can't be fixed by retrying — go straight to fallback.
+      isNonRetryableAiError,
     );
 
     // ── Build the audit envelope ───────────────────────────────────────────────

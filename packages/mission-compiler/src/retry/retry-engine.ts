@@ -47,6 +47,15 @@ export async function withAIRetry<T>(
   generate: () => Promise<unknown>,
   validate: (raw: unknown) => T,
   getFallback: () => SafeFallback,
+  /**
+   * Optional predicate identifying a generation error that will NOT be fixed by
+   * retrying the identical call (e.g. a request timeout / abort). When it returns
+   * true, we stop retrying and go straight to the safe fallback — retrying such an
+   * error only multiplies the wall-clock wait before the student gets any mission.
+   * Validation failures (ZodError from AI truncation) are still retried, as those
+   * are often transient. Defaults to never-fatal (original behaviour).
+   */
+  isFatalGenerationError?: (error: unknown) => boolean,
 ): Promise<AIOutputResult> {
   const failedAttempts: AIValidationAttempt[] = [];
 
@@ -71,6 +80,17 @@ export async function withAIRetry<T>(
       console.error(
         `[retry-engine] Attempt ${attempt}/${AI_MAX_RETRY_ATTEMPTS} — generation failed: ${failureReason}`,
       );
+
+      // Fatal (non-retryable) generation error — e.g. a request timeout. Retrying
+      // the identical call won't help and only delays the fallback the student
+      // needs, so short-circuit to the fallback now. The failed-with-fallback
+      // branch below pads the attempt records to the schema-required length.
+      if (isFatalGenerationError?.(generationError)) {
+        console.error(
+          `[retry-engine] Attempt ${attempt}/${AI_MAX_RETRY_ATTEMPTS} — non-retryable generation error; using fallback immediately.`,
+        );
+        break;
+      }
 
       // If this was the last attempt, fall through to fallback
       if (attempt === AI_MAX_RETRY_ATTEMPTS) {
