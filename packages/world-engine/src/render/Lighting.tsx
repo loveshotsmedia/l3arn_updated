@@ -1,9 +1,13 @@
 /**
  * Lighting — the single lighting rig for every scene (spec §7.2).
- * One directional sun with cascaded-quality shadow settings, an environment
- * map for image-based lighting, and ACES filmic tone mapping. Real HDRI
- * asset is wired in Phase 1 Task 10; until then <Environment preset> gives
- * a reasonable built-in IBL so this task is independently verifiable.
+ *
+ * Visual-pass update: the dawn HDRI is now the visible sky (background), not
+ * just IBL — the hall's open roof reads as a skylit atrium. A hemisphere
+ * light replaces the old flat ambient + fill pair: cool sky bounce from
+ * above, warm ground bounce from below, which is what lifts shadows into
+ * color instead of crushing them to black (spec §7.2 QA rule: no pure-black
+ * shadows). The sun stays the ONE real-time shadow-casting light
+ * (spec §8.1: ≤1 shadow light on LOW tier), warmed to match the dawn sky.
  */
 import { Environment } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
@@ -21,14 +25,17 @@ export function Lighting() {
 
   return (
     <>
-      <Environment files="/env/great-hall-dawn.hdr" background={false} />
+      {/* IBL + visible sky. Slight blur keeps the 1k HDRI painterly rather than pixelated. */}
+      <Environment files="/env/great-hall-dawn.hdr" background backgroundBlurriness={0.06} />
 
-      <ambientLight intensity={0.25} />
+      {/* Hemisphere bounce — cool sky above, warm stone below. Lifts shadow floors into color. */}
+      <hemisphereLight args={['#bcd2f0', '#9c7f5f', 0.55]} />
 
-      {/* Key light / "sun" — the ONE real-time shadow-casting light (spec §8.1: <=1 real-time light on LOW tier). */}
+      {/* Key light / "sun" — the ONE real-time shadow-casting light, dawn-warm. */}
       <directionalLight
+        color="#ffe8c8"
         position={[10, 20, 10]}
-        intensity={1.4}
+        intensity={1.5}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-far={50}
@@ -38,9 +45,6 @@ export function Lighting() {
         shadow-camera-bottom={-20}
         shadow-bias={-0.0005}
       />
-
-      {/* Soft fill — no shadow, cheap. */}
-      <directionalLight position={[-5, 10, -5]} intensity={0.25} />
     </>
   );
 }

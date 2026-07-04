@@ -75,12 +75,18 @@ export default function AcademyPage() {
 
   return (
     <div style={styles.canvasContainer}>
-      <WorldCanvas
-        scene={currentScene}
-        onEvent={handleWorldEvent}
-        displayName={displayName}
-        house={house}
-      />
+      {/* Absolute-inset wrapper gives the R3F canvas a definite box from first
+          paint. Without it, R3F's initial measurement can race the flex layout
+          and freeze the canvas at the 150px intrinsic default (the
+          long-standing "strip" bug seen in every screenshot until now). */}
+      <div style={styles.canvasFill}>
+        <WorldCanvas
+          scene={currentScene}
+          onEvent={handleWorldEvent}
+          displayName={displayName}
+          house={house}
+        />
+      </div>
       <div style={styles.hudOverlay}>
         <div style={styles.hudHint}>
           Click anywhere to move · Click the Sorting Computer to begin
@@ -98,6 +104,10 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     position: "relative",
     height: "calc(100vh - 52px)",
+  },
+  canvasFill: {
+    position: "absolute",
+    inset: 0,
   },
   hudOverlay: {
     position: "absolute",
