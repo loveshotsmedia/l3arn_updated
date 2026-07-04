@@ -12,6 +12,7 @@
  */
 
 import { withAIRetry } from "./retry-engine";
+import { isNonRetryableAiError } from "../compiler";
 import type { SafeFallback } from "@l3arn/shared-types";
 
 // Minimal SafeFallback — only `id` is read by withAIRetry (as result.fallbackId).
@@ -85,5 +86,53 @@ describe("withAIRetry — non-retryable generation errors", () => {
 
     expect(result.status).toBe("validated");
     expect(predicateCalls).toBe(0);
+  });
+});
+
+/**
+ * PR #20 prod-miss regression coverage: in the Railway runtime, the SDK timeout
+ * error did NOT match `instanceof Anthropic.APIConnectionTimeoutError` alone, so
+ * withAIRetry retried all 3 attempts (3x90s = 270s) instead of short-circuiting.
+ * isNonRetryableAiError (compiler.ts) now also duck-types by name/message. These
+ * tests exercise the REAL exported predicate wired through withAIRetry, not a
+ * local stand-in.
+ */
+describe("withAIRetry — fatal generation errors (real isNonRetryableAiError predicate)", () => {
+  const FALLBACK_2: SafeFallback = {
+    id: "test-fallback",
+    context: "mission-generation",
+    title: "t",
+    content: "{}",
+    parentNote: "n",
+    parentVisible: true,
+    isAIGenerated: false,
+  };
+
+  it("short-circuits to fallback after ONE attempt when the error is a timeout", async () => {
+    let calls = 0;
+    const generate = async () => {
+      calls++;
+      throw { name: "AbortError", message: "Request timed out." };
+    };
+    const result = await withAIRetry(generate, (r) => r, () => FALLBACK_2, isNonRetryableAiError);
+    expect(calls).toBe(1); // NOT 3
+    expect(result.status).toBe("failed-with-fallback");
+  });
+
+  it("still retries 3x for a non-fatal generation error", async () => {
+    let calls = 0;
+    const generate = async () => {
+      calls++;
+      throw new Error("transient network blip");
+    };
+    const result = await withAIRetry(generate, (r) => r, () => FALLBACK_2, isNonRetryableAiError);
+    expect(calls).toBe(3);
+    expect(result.status).toBe("failed-with-fallback");
+  });
+
+  it("predicate matches by name and message, not just instanceof", () => {
+    expect(isNonRetryableAiError({ name: "AbortError" })).toBe(true);
+    expect(isNonRetryableAiError({ message: "Request timed out." })).toBe(true);
+    expect(isNonRetryableAiError(new Error("boom"))).toBe(false);
   });
 });

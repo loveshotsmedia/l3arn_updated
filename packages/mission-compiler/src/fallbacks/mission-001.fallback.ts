@@ -20,7 +20,7 @@
  * — Agent 6, Phase 0
  */
 
-import type { SafeFallback } from "@l3arn/shared-types";
+import { Student3dMissionSchema, type SafeFallback, type Student3dMission } from "@l3arn/shared-types";
 
 /**
  * The fallback ID used to reference this fallback in AIOutputResult records.
@@ -242,3 +242,13 @@ export const MISSION_001_FALLBACK: SafeFallback = {
   parentVisible: true,
   isAIGenerated: false,
 } as const;
+
+/**
+ * The student3dMission slice of the safe fallback, parsed to the shared-types
+ * shape. Used by the fast-start path (compileStart) when AI generation fails —
+ * it needs only this section, not the whole mission.
+ */
+export function getMission001FallbackStudent3d(): Student3dMission {
+  const parsed = JSON.parse(MISSION_001_FALLBACK.content) as { student3dMission: unknown };
+  return Student3dMissionSchema.parse(parsed.student3dMission);
+}
