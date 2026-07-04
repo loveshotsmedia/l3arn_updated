@@ -74,24 +74,43 @@ export function HallArchitecture() {
         <meshStandardMaterial {...DARK_WOOD} />
       </mesh>
 
-      {/* ── House banners on the back wall, per-instance House color (1 + 1 draw calls) ── */}
+      {/* ── House banners on the back wall, per-instance House color, tilted off the
+             wall like hung cloth, gold rod above + gold fringe below (3 draw calls) ── */}
       <Instances>
-        <boxGeometry args={[1.7, 4.2, 0.06]} />
+        <boxGeometry args={[1.9, 4.4, 0.06]} />
         <meshStandardMaterial roughness={0.8} metalness={0.0} emissiveIntensity={0.18} emissive="#ffffff" />
         {BANNER_HOUSES.map((houseName, i) => (
           <Instance
             key={houseName}
-            position={[BANNER_XS[i], 6.3, -14.35]}
+            position={[BANNER_XS[i], 6.25, -14.15]}
+            rotation={[0.085, 0, 0]}
             color={HOUSE_COLORS[houseName]}
           />
         ))}
       </Instances>
       <Instances castShadow>
-        <boxGeometry args={[2.2, 0.12, 0.12]} />
+        <boxGeometry args={[2.4, 0.13, 0.13]} />
         <meshStandardMaterial color="#c9a24a" roughness={0.35} metalness={0.7} />
         {BANNER_XS.map((x, i) => (
-          <Instance key={`rod-${i}`} position={[x, 8.5, -14.35]} />
+          <Instance key={`rod-${i}`} position={[x, 8.5, -14.3]} />
         ))}
+      </Instances>
+      <Instances>
+        <boxGeometry args={[1.9, 0.14, 0.08]} />
+        <meshStandardMaterial color="#c9a24a" roughness={0.4} metalness={0.65} emissive="#c9a24a" emissiveIntensity={0.12} />
+        {BANNER_XS.map((x, i) => (
+          <Instance key={`fringe-${i}`} position={[x, 4.05, -13.97]} rotation={[0.085, 0, 0]} />
+        ))}
+      </Instances>
+
+      {/* ── Benches along the side walls, between the columns (1 draw call) ── */}
+      <Instances castShadow receiveShadow>
+        <boxGeometry args={[0.75, 0.42, 2.6]} />
+        <meshStandardMaterial {...DARK_WOOD} />
+        {[-9, -3, 3, 9].flatMap((z) => [
+          <Instance key={`bench-l-${z}`} position={[-13.7, 0.21, z]} />,
+          <Instance key={`bench-r-${z}`} position={[13.7, 0.21, z]} />,
+        ])}
       </Instances>
 
       {/* ── Clerestory window panes on the side walls — warm glow, bloom-friendly (1 draw call) ── */}
