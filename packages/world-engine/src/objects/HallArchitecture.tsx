@@ -62,6 +62,31 @@ export function HallArchitecture() {
         ))}
       </Instances>
 
+      {/* ── Gold capital bands — a ring under each capital, tying the gold accents through the room (1 draw call) ── */}
+      <Instances>
+        <torusGeometry args={[0.4, 0.045, 8, 20]} />
+        <meshStandardMaterial color="#c9a24a" roughness={0.35} metalness={0.7} emissive="#c9a24a" emissiveIntensity={0.15} />
+        {COLUMN_POSITIONS.map(([x, , z], i) => (
+          <Instance key={`band-${i}`} position={[x, 7.62, z]} rotation={[Math.PI / 2, 0, 0]} />
+        ))}
+      </Instances>
+
+      {/* ── L3ARN crest — back-wall focal emblem between the banners (3 draw calls) ── */}
+      <group position={[0, 8.75, -14.35]}>
+        <mesh>
+          <torusGeometry args={[0.85, 0.09, 10, 32]} />
+          <meshStandardMaterial color="#c9a24a" roughness={0.3} metalness={0.75} emissive="#c9a24a" emissiveIntensity={0.25} />
+        </mesh>
+        <mesh position={[0, 0, -0.02]}>
+          <circleGeometry args={[0.8, 32]} />
+          <meshStandardMaterial color="#2b2455" roughness={0.6} emissive="#4338ca" emissiveIntensity={0.35} />
+        </mesh>
+        <mesh position={[0, 0, 0.03]}>
+          <torusGeometry args={[0.42, 0.04, 8, 24]} />
+          <meshStandardMaterial color="#818cf8" emissive="#818cf8" emissiveIntensity={1.4} toneMapped={false} />
+        </mesh>
+      </group>
+
       {/* ── Roof structure: cross rafters + ridge beam, open to the sky (1 + 1 draw calls) ── */}
       <Instances castShadow>
         <boxGeometry args={[30.6, 0.5, 0.8]} />

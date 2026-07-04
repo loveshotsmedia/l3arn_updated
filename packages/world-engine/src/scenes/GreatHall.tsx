@@ -22,6 +22,7 @@ import { MasteryBuilding } from '../objects/MasteryBuilding';
 import { HallArchitecture, TORCH_MOUNTS } from '../objects/HallArchitecture';
 import { TorchSconces } from '../objects/TorchSconces';
 import { DustMotes } from '../objects/DustMotes';
+import { Hearth } from '../objects/Hearth';
 import {
   createStoneTileTexture,
   createStoneBlockTexture,
@@ -161,6 +162,9 @@ export function GreatHall({ onEvent, displayName = 'Explorer', house }: ScenePro
 
       {/* Dust motes — drifting warm dust; drift freezes in Mission mode (two-modes law). */}
       <DustMotes />
+
+      {/* Grand hearth — left wall; fire freezes in Mission mode (two-modes law). */}
+      <Hearth />
 
       {/* Sorting Computer — Mission 001 trigger (ADR-027 / hero slice), standing on the dais.
           The terminal's group origin is at its base, so y = the dais top surface (0.4). */}
