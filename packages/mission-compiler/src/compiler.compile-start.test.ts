@@ -62,6 +62,8 @@ describe("MissionCompiler.compileStart", () => {
     expect(out.usedFallback).toBe(false);
     expect(out.student3dMission.storyHook).toContain("Ziggy");
     expect(out.envelope.result.status).toBe("validated");
+    // Audit envelope must attribute fast-start content to the 3D prompt version.
+    expect(out.envelope.promptTemplateVersion).toBe("3d-0.1.0");
   });
 
   it("falls back to the student3dMission slice on a timeout (short-circuit, one attempt)", async () => {

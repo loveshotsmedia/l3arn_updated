@@ -47,7 +47,10 @@ import {
   buildMission001UserMessage,
   MISSION_001_PROMPT_TEMPLATE_VERSION,
 } from "./prompts/mission-001.prompt";
-import { buildMission0013dSystemPrompt } from "./prompts/mission-001-3d.prompt";
+import {
+  buildMission0013dSystemPrompt,
+  MISSION_001_3D_PROMPT_TEMPLATE_VERSION,
+} from "./prompts/mission-001-3d.prompt";
 import {
   MISSION_001_FALLBACK,
   getMission001FallbackStudent3d,
@@ -269,8 +272,10 @@ export class MissionCompiler {
   /**
    * Build the AI audit envelope (ADR-028). Extracted so compile() and
    * compileStart() produce an identical envelope shape from the same code path.
-   * Generates a fresh envelope id; traceId, requestedAt, result, and modelVersion
-   * are threaded through from the calling compile path.
+   * Generates a fresh envelope id; traceId, requestedAt, result, modelVersion,
+   * and promptTemplateVersion are threaded through from the calling compile path
+   * (compile() and compileStart() use different prompts, so the version must be
+   * passed in to attribute the audit envelope to the prompt that produced it).
    */
   private buildEnvelope(
     traceId: string,
@@ -278,6 +283,7 @@ export class MissionCompiler {
     result: AIOutputResult,
     modelVersion: string,
     input: MissionCompilerInput,
+    promptTemplateVersion: string,
   ): AIOutputEnvelope {
     return {
       id: uuidv4(),
@@ -289,7 +295,7 @@ export class MissionCompiler {
       result,
       modelProvider: MODEL_PROVIDER,
       modelVersion: modelVersion,
-      promptTemplateVersion: MISSION_001_PROMPT_TEMPLATE_VERSION,
+      promptTemplateVersion,
       schemaVersion: SCHEMA_VERSION,
       safetyPolicyVersion: undefined,
       missionCompilerVersion: MISSION_COMPILER_VERSION,
@@ -391,6 +397,7 @@ export class MissionCompiler {
       result,
       modelVersion,
       input,
+      MISSION_001_PROMPT_TEMPLATE_VERSION,
     );
 
     // ── Handle both result branches ────────────────────────────────────────────
@@ -574,6 +581,7 @@ export class MissionCompiler {
       result,
       modelVersion,
       input,
+      MISSION_001_3D_PROMPT_TEMPLATE_VERSION,
     );
 
     if (result.status === "validated") {
