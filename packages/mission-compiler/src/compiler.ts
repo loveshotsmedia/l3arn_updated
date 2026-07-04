@@ -38,6 +38,8 @@ import {
   MissionOutput,
   MissionOutputSchema,
   RewardPlan,
+  Student3dMission,
+  Student3dMissionSchema,
 } from "@l3arn/shared-types";
 
 import {
@@ -45,10 +47,18 @@ import {
   buildMission001UserMessage,
   MISSION_001_PROMPT_TEMPLATE_VERSION,
 } from "./prompts/mission-001.prompt";
-import { MISSION_001_FALLBACK } from "./fallbacks/mission-001.fallback";
+import { buildMission0013dSystemPrompt } from "./prompts/mission-001-3d.prompt";
+import {
+  MISSION_001_FALLBACK,
+  getMission001FallbackStudent3d,
+} from "./fallbacks/mission-001.fallback";
 import { withAIRetry } from "./retry/retry-engine";
-import { AIRawMissionOutputSchema } from "./validation/mission-output.schema";
+import {
+  AI3dMissionSchema,
+  AIRawMissionOutputSchema,
+} from "./validation/mission-output.schema";
 import { MISSION_OUTPUT_JSON_SCHEMA } from "./validation/mission-output.json-schema";
+import { MISSION_3D_JSON_SCHEMA } from "./validation/mission-3d.json-schema";
 import {
   buildParentPlanOutput,
   ParentPlanOutput,
@@ -226,15 +236,64 @@ export interface MissionCompilerOutput {
   usedFallback: boolean;
 }
 
+/**
+ * The fast-start compiler output — only the section the runtime consumes at start.
+ * Produced by compileStart(): a ~4-6× smaller generation than the full six-section
+ * compile(), so it finishes inside the timeout and AI content is the norm.
+ */
+export interface MissionStartCompilerOutput {
+  /** The student-facing 3D mission section (the only section needed at start) */
+  student3dMission: Student3dMission;
+
+  /** True if the safe fallback slice was used instead of AI-generated content */
+  usedFallback: boolean;
+
+  /** The full AI output envelope (identical shape to compile()'s envelope) */
+  envelope: AIOutputEnvelope;
+}
+
 // ─── MissionCompiler Class ────────────────────────────────────────────────────
 
 export class MissionCompiler {
   private readonly client: Anthropic;
 
-  constructor(apiKey?: string) {
-    this.client = new Anthropic({
-      apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY,
-    });
+  constructor(apiKey?: string, client?: Anthropic) {
+    this.client =
+      client ??
+      new Anthropic({
+        apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY,
+      });
+  }
+
+  /**
+   * Build the AI audit envelope (ADR-028). Extracted so compile() and
+   * compileStart() produce an identical envelope shape from the same code path.
+   * Generates a fresh envelope id; traceId, requestedAt, result, and modelVersion
+   * are threaded through from the calling compile path.
+   */
+  private buildEnvelope(
+    traceId: string,
+    requestedAt: string,
+    result: AIOutputResult,
+    modelVersion: string,
+    input: MissionCompilerInput,
+  ): AIOutputEnvelope {
+    return {
+      id: uuidv4(),
+      traceId,
+      generationContext: "mission-compiler",
+      childProfileId: input.childProfileId,
+      childSessionId: input.childSessionId,
+      requestedAt,
+      result,
+      modelProvider: MODEL_PROVIDER,
+      modelVersion: modelVersion,
+      promptTemplateVersion: MISSION_001_PROMPT_TEMPLATE_VERSION,
+      schemaVersion: SCHEMA_VERSION,
+      safetyPolicyVersion: undefined,
+      missionCompilerVersion: MISSION_COMPILER_VERSION,
+      parentVisible: true,
+    };
   }
 
   /**
@@ -325,22 +384,13 @@ export class MissionCompiler {
 
     // ── Build the audit envelope ───────────────────────────────────────────────
 
-    const envelope: AIOutputEnvelope = {
-      id: uuidv4(),
+    const envelope = this.buildEnvelope(
       traceId,
-      generationContext: "mission-compiler",
-      childProfileId: input.childProfileId,
-      childSessionId: input.childSessionId,
       requestedAt,
       result,
-      modelProvider: MODEL_PROVIDER,
-      modelVersion: modelVersion,
-      promptTemplateVersion: MISSION_001_PROMPT_TEMPLATE_VERSION,
-      schemaVersion: SCHEMA_VERSION,
-      safetyPolicyVersion: undefined,
-      missionCompilerVersion: MISSION_COMPILER_VERSION,
-      parentVisible: true,
-    };
+      modelVersion,
+      input,
+    );
 
     // ── Handle both result branches ────────────────────────────────────────────
 
@@ -437,5 +487,107 @@ export class MissionCompiler {
         usedFallback: true,
       };
     }
+  }
+
+  /**
+   * Fast-start compile: generate ONLY the student3dMission section (the single
+   * section the runtime consumes at mission start). ~4-6× smaller than the full
+   * six-section compile(), so it finishes inside the timeout and AI content is
+   * the norm, not the fallback. Falls back to the student3dMission slice of
+   * MISSION_001_FALLBACK on a genuine API failure.
+   */
+  async compileStart(
+    input: MissionCompilerInput,
+  ): Promise<MissionStartCompilerOutput> {
+    const modelVersion = resolveModelVersion();
+    const aiTimeoutMs = resolveAiTimeoutMs();
+    const traceId = uuidv4();
+    const requestedAt = new Date().toISOString();
+
+    const systemPrompt = buildMission0013dSystemPrompt();
+    const userMessage = buildMission001UserMessage({
+      parentIntent: input.parentIntent,
+      childPersonalization: {
+        displayName: input.childPersonalization.displayName,
+        houseAffiliation: input.childPersonalization.houseAffiliation,
+        companionName: input.childPersonalization.companionName,
+        companionPersonality: input.childPersonalization.companionPersonality,
+        learningPrefs: input.childPersonalization.learningPrefs,
+      },
+      masteryTargets: input.masteryTargets,
+    });
+
+    const result: AIOutputResult = await withAIRetry(
+      // generate(): request only the narrow student3dMission tool
+      async () => {
+        const response = await this.client.messages.create(
+          {
+            // Only one section → 4000 output tokens is ample headroom.
+            model: modelVersion,
+            max_tokens: 4000,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userMessage }],
+            tools: [
+              {
+                name: "generate_student_3d_mission",
+                description:
+                  "Generate the student-facing 3D mission for Mission 001: story hook, " +
+                  "companion dialogue, ordered tasks, and reward preview.",
+                input_schema: MISSION_3D_JSON_SCHEMA,
+              },
+            ],
+            tool_choice: { type: "tool", name: "generate_student_3d_mission" },
+          },
+          {
+            // Same request-bounding contract as compile(): withAIRetry is the
+            // single retry authority (SDK maxRetries: 0).
+            timeout: aiTimeoutMs,
+            maxRetries: 0,
+          },
+        );
+
+        const toolUseBlock = response.content.find(
+          (block) => block.type === "tool_use",
+        );
+        if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
+          throw new Error(
+            "Claude did not return a tool_use block for generate_student_3d_mission",
+          );
+        }
+        return toolUseBlock.input;
+      },
+
+      // validate(): narrow 3D-only Zod schema
+      (raw: unknown) => AI3dMissionSchema.parse(raw),
+
+      // getFallback(): the pre-built safe fallback for Mission 001
+      () => MISSION_001_FALLBACK,
+
+      // A request timeout/abort can't be fixed by retrying — go straight to fallback.
+      isNonRetryableAiError,
+    );
+
+    const envelope = this.buildEnvelope(
+      traceId,
+      requestedAt,
+      result,
+      modelVersion,
+      input,
+    );
+
+    if (result.status === "validated") {
+      const student3dMission = Student3dMissionSchema.parse(result.data);
+      return { student3dMission, usedFallback: false, envelope };
+    }
+
+    console.warn(
+      `[MissionCompiler] compileStart fallback for childProfileId=${input.childProfileId}. ` +
+        `Notification: ${result.notificationLevel}. FallbackId: ${result.fallbackId}. TraceId: ${traceId}.`,
+    );
+    return {
+      student3dMission: getMission001FallbackStudent3d(),
+      usedFallback: true,
+      envelope,
+    };
   }
 }

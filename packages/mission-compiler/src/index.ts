@@ -15,9 +15,11 @@
 // ── Primary: compiler class and its I/O types ─────────────────────────────────
 export {
   MissionCompiler,
+  isNonRetryableAiError,
   MISSION_COMPILER_VERSION,
   type MissionCompilerInput,
   type MissionCompilerOutput,
+  type MissionStartCompilerOutput,
   type ParentReportSeed,
 } from "./compiler";
 
