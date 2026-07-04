@@ -270,15 +270,36 @@ export interface MissionStartCompilerOutput {
 
 // ─── MissionCompiler Class ────────────────────────────────────────────────────
 
+/**
+ * Options for the default-constructed Anthropic client.
+ *
+ * `fetch` is Node's built-in fetch (undici), overriding the SDK 0.26 node
+ * shim (node-fetch). node-fetch failed every streamed response on the
+ * Railway runtime with "Premature close" at end-of-stream (0/3 AI
+ * generations in prod); undici terminates chunked/SSE bodies correctly.
+ * Exported for testability.
+ */
+export function buildDefaultClientOptions(apiKey?: string): {
+  apiKey: string | undefined;
+  fetch: typeof globalThis.fetch;
+} {
+  return {
+    apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY,
+    fetch: globalThis.fetch,
+  };
+}
+
 export class MissionCompiler {
   private readonly client: Anthropic;
 
   constructor(apiKey?: string, client?: Anthropic) {
     this.client =
       client ??
-      new Anthropic({
-        apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY,
-      });
+      new Anthropic(
+        buildDefaultClientOptions(apiKey) as unknown as ConstructorParameters<
+          typeof Anthropic
+        >[0],
+      );
   }
 
   /**
