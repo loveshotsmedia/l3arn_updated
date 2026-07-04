@@ -11,6 +11,7 @@
  * columns without duplicating the layout math.
  */
 import { Instances, Instance } from '@react-three/drei';
+import { AdditiveBlending, DoubleSide } from 'three';
 import { HOUSE_COLORS } from '../types';
 
 /** Column centers — two rows lining the side walls. */
@@ -122,6 +123,70 @@ export function HallArchitecture() {
           <Instance key={`win-r-${z}`} position={[14.4, 6.4, z]} />,
         ])}
       </Instances>
+
+      {/* ── Window frames: jambs + sills boxed around each pane (1 draw call via per-instance scale) ── */}
+      <Instances castShadow>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial {...DARK_WOOD} />
+        {[-9, -3, 3, 9].flatMap((z) =>
+          [-14.38, 14.38].flatMap((x) => [
+            <Instance key={`jamb-a-${x}-${z}`} position={[x, 6.4, z - 0.78]} scale={[0.2, 3.6, 0.16]} />,
+            <Instance key={`jamb-b-${x}-${z}`} position={[x, 6.4, z + 0.78]} scale={[0.2, 3.6, 0.16]} />,
+            <Instance key={`sill-top-${x}-${z}`} position={[x, 8.1, z]} scale={[0.2, 0.16, 1.72]} />,
+            <Instance key={`sill-bot-${x}-${z}`} position={[x, 4.7, z]} scale={[0.2, 0.16, 1.72]} />,
+          ]),
+        )}
+      </Instances>
+
+      {/* ── Light shafts angling in from the windows — static, additive, very low opacity (1 draw call) ── */}
+      <Instances>
+        <planeGeometry args={[1.5, 7.5]} />
+        <meshBasicMaterial
+          color="#ffdfae"
+          transparent
+          opacity={0.075}
+          blending={AdditiveBlending}
+          depthWrite={false}
+          side={DoubleSide}
+          toneMapped={false}
+        />
+        {[-9, -3, 3, 9].flatMap((z) => [
+          <Instance
+            key={`shaft-l-${z}`}
+            position={[-11.6, 4.3, z]}
+            rotation={[0, Math.PI / 2, 0.62]}
+          />,
+          <Instance
+            key={`shaft-r-${z}`}
+            position={[11.6, 4.3, z]}
+            rotation={[0, Math.PI / 2, -0.62]}
+          />,
+        ])}
+      </Instances>
+
+      {/* ── Cornice caps along the wall tops — cleans the silhouette (1 draw call via per-instance scale) ── */}
+      <Instances castShadow>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color="#6f6353" roughness={0.85} metalness={0.02} />
+        <Instance position={[0, 10.15, -15]} scale={[30.9, 0.35, 1.35]} />
+        <Instance position={[-15, 10.15, 0]} scale={[1.35, 0.35, 30.9]} />
+        <Instance position={[15, 10.15, 0]} scale={[1.35, 0.35, 30.9]} />
+        <Instance position={[-8, 10.15, 15]} scale={[14.3, 0.35, 1.35]} />
+        <Instance position={[8, 10.15, 15]} scale={[14.3, 0.35, 1.35]} />
+      </Instances>
+
+      {/* ── Dais glow ring — indigo floor inlay tying the dais to the terminal glow (1 draw call) ── */}
+      <mesh position={[0, 0.02, -10]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[3.55, 3.8, 48]} />
+        <meshStandardMaterial
+          color="#6366f1"
+          emissive="#6366f1"
+          emissiveIntensity={1.5}
+          transparent
+          opacity={0.85}
+          toneMapped={false}
+        />
+      </mesh>
 
       {/* ── Entrance framing: two pillars + lintel over the front gap (2 draw calls) ── */}
       <Instances castShadow receiveShadow>
