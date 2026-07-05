@@ -29,6 +29,11 @@ interface SortingComputerProps {
 const DARK_METAL = { color: '#1e293b', roughness: 0.35, metalness: 0.85 };
 
 export function SortingComputer({ position = [0, 0, 0], onEvent }: SortingComputerProps) {
+  // World labels are Explore-mode chrome: they hide the moment a mission starts
+  // (spec §4 — the world quiets), which also stops drei's high-z-index Html from
+  // bleeding through the mission overlay.
+  const worldMode = useWorldStore((s) => s.worldMode);
+
   function handleClick(e: { stopPropagation: () => void }) {
     e.stopPropagation();
     useWorldStore.getState().enterMissionMode();
@@ -92,7 +97,8 @@ export function SortingComputer({ position = [0, 0, 0], onEvent }: SortingComput
         <meshStandardMaterial color="#818cf8" emissive="#818cf8" emissiveIntensity={2.4} toneMapped={false} />
       </mesh>
 
-      {/* Label above the terminal */}
+      {/* Label above the terminal — Explore mode only (see note at top) */}
+      {worldMode === 'explore' && (
       <Html position={[0, 2.55, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
         <div
           style={{
@@ -110,6 +116,7 @@ export function SortingComputer({ position = [0, 0, 0], onEvent }: SortingComput
           Sorting Computer
         </div>
       </Html>
+      )}
     </group>
   );
 }

@@ -50,6 +50,94 @@ async function tryCapture(
   }
 }
 
+// ── Task-type visuals (Mayer-compliant: instructionally RELEVANT graphics only;
+//    static, calm, no animation — this surface is Mission mode, spec §4) ────────
+
+type TaskKind = "sort" | "inspect" | "explain";
+
+/** Map a free-form interactionType string onto one of three visual kinds. */
+function taskKind(interactionType: string, description: string): TaskKind {
+  const hay = `${interactionType} ${description}`.toLowerCase();
+  if (/mistake|wrong|error|check|find|pick|spot|identify/.test(hay)) return "inspect";
+  if (/explain|why|rule|tell|reflect|describe|reason/.test(hay)) return "explain";
+  return "sort";
+}
+
+function TaskIcon({ kind }: { kind: TaskKind }) {
+  const stroke = "#818cf8";
+  if (kind === "sort") {
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="5" cy="5" r="2.4" fill={stroke} opacity="0.9" />
+        <circle cx="12" cy="4" r="1.8" fill={stroke} opacity="0.55" />
+        <path d="M3 11h5v6H3zM12 11h5v6h-5z" stroke={stroke} strokeWidth="1.4" />
+        <path d="M5.5 8v2M13 7v3" stroke={stroke} strokeWidth="1.2" strokeDasharray="2 1.6" />
+      </svg>
+    );
+  }
+  if (kind === "inspect") {
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="8.5" cy="8.5" r="5" stroke={stroke} strokeWidth="1.6" />
+        <path d="M12.5 12.5L17 17" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M6.5 8.5l1.4 1.4 2.6-2.8" stroke={stroke} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M3 4h14v9H9l-3.5 3.5V13H3z" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M6.5 7.5h7M6.5 10h4.5" stroke={stroke} strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/**
+ * Briefing illustration — a calm, static picture of the mission's core task,
+ * chosen from the first task's kind. Relevant-only per Mayer's multimedia
+ * principle: it depicts what the child will actually do, nothing decorative.
+ */
+function MissionIllustration({ kind }: { kind: TaskKind }) {
+  if (kind !== "sort") {
+    // Non-sorting missions get a subdued terminal glyph — relevant (it's the
+    // Computer Core), quiet, and generic across AI-generated variants.
+    return (
+      <div style={styles.illustrationWrap} aria-hidden="true">
+        <svg width="220" height="96" viewBox="0 0 220 96" fill="none">
+          <rect x="70" y="14" width="80" height="52" rx="6" stroke="#6366f1" strokeWidth="2" />
+          <rect x="78" y="22" width="64" height="30" rx="3" fill="rgba(129,140,248,0.25)" />
+          <path d="M98 66v10M122 66v10M86 80h48" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </div>
+    );
+  }
+  const orbs = [
+    { cx: 50, fill: "#60a5fa" },
+    { cx: 110, fill: "#f87171" },
+    { cx: 170, fill: "#fde047" },
+  ];
+  return (
+    <div style={styles.illustrationWrap} aria-hidden="true">
+      <svg width="220" height="96" viewBox="0 0 220 96" fill="none">
+        {orbs.map(({ cx, fill }) => (
+          <g key={cx}>
+            <circle cx={cx} cy="18" r="10" fill={fill} opacity="0.9" />
+            <path d={`M${cx} 33v18`} stroke={fill} strokeWidth="2" strokeDasharray="3 3" opacity="0.6" />
+            <path d={`M${cx - 4} 46l4 6 4-6`} fill="none" stroke={fill} strokeWidth="2" opacity="0.6" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d={`M${cx - 16} 60l3 26h26l3-26`}
+              stroke={fill}
+              strokeWidth="2"
+              fill={`${fill}22`}
+              strokeLinejoin="round"
+            />
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 // ── Companion Dialogue Component ──────────────────────────────────────────────
 
 function CompanionDialogue({ text }: { text: string }) {
@@ -649,17 +737,25 @@ export function MissionExperience({ forcedMissionId, onExit }: MissionExperience
           <h1 style={styles.title}>{title}</h1>
           <p style={styles.narrative}>{mission.storyHook}</p>
 
+          <MissionIllustration
+            kind={mission.tasks[0] ? taskKind(mission.tasks[0].interactionType, mission.tasks[0].description) : "sort"}
+          />
+
           <CompanionDialogue text="Let's figure this out together! Which crystal should go first?" />
 
           <div style={styles.section}>
             <h3 style={styles.sectionTitle}>Your Tasks</h3>
-            <ul style={styles.taskList}>
-              {mission.tasks.map((t) => (
+            <ol style={styles.taskList}>
+              {mission.tasks.map((t, i) => (
                 <li key={t.id} style={styles.taskItem}>
-                  {t.description}
+                  <span style={styles.taskNumber}>{i + 1}</span>
+                  <span style={styles.taskIconWrap}>
+                    <TaskIcon kind={taskKind(t.interactionType, t.description)} />
+                  </span>
+                  <span style={styles.taskText}>{t.description}</span>
                 </li>
               ))}
-            </ul>
+            </ol>
           </div>
 
           <div style={styles.rewardBanner}>
@@ -799,7 +895,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #1e293b",
     borderRadius: "16px",
     padding: "2rem",
-    maxWidth: "600px",
+    maxWidth: "680px",
     width: "100%",
   },
   locationBadge: {
@@ -846,11 +942,41 @@ const styles: Record<string, React.CSSProperties> = {
   taskItem: {
     background: "rgba(99, 102, 241, 0.08)",
     border: "1px solid rgba(99, 102, 241, 0.2)",
-    borderRadius: "8px",
-    padding: "0.625rem 0.875rem",
+    borderRadius: "10px",
+    padding: "0.8rem 1rem",
     color: "#cbd5e1",
-    fontSize: "0.9rem",
-    lineHeight: 1.5,
+    fontSize: "0.95rem",
+    lineHeight: 1.55,
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+  },
+  taskNumber: {
+    flexShrink: 0,
+    width: "1.5rem",
+    height: "1.5rem",
+    borderRadius: "999px",
+    background: "rgba(99, 102, 241, 0.25)",
+    border: "1px solid rgba(129, 140, 248, 0.5)",
+    color: "#c7d2fe",
+    fontSize: "0.8rem",
+    fontWeight: 700,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  taskIconWrap: {
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+  },
+  taskText: {
+    flex: 1,
+  },
+  illustrationWrap: {
+    display: "flex",
+    justifyContent: "center",
+    padding: "0.75rem 0 1rem",
   },
   targetList: {
     listStyle: "none",
