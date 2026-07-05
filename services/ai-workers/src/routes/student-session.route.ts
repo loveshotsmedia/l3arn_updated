@@ -458,27 +458,46 @@ studentSessionRouter.post(
     const session = await requireChildSession(req, res, supabase);
     if (!session) return;
 
-    const { data: holding, error: upsertError } = await supabase
+    // Retry guard, same shape as the house_memberships check above: if this
+    // child already owns the holding, skip the write entirely and return the
+    // original row — a true no-op, not a re-unlock. (The previous
+    // `ignoreDuplicates: true` upsert relied on `.select().single()` to
+    // return the ignored row, but PostgREST's RETURNING clause never
+    // includes a conflict-skipped row, so a re-unlock always 500'd with
+    // "Cannot coerce the result to a single JSON object".)
+    const { data: existingHolding } = await supabase
       .from("world_holdings")
-      .upsert(
-        {
-          child_profile_id: session.child_profile_id,
-          holding_id: holdingId,
-          unlocked_by_mission_id: unlockedByMissionId,
-        },
-        { onConflict: "child_profile_id,holding_id", ignoreDuplicates: true },
-      )
       .select("holding_id, unlocked_by_mission_id, unlocked_at")
-      .single();
+      .eq("child_profile_id", session.child_profile_id)
+      .eq("holding_id", holdingId)
+      .maybeSingle();
 
-    if (upsertError || !holding) {
-      log("error", "POST /holdings: failed to upsert world_holdings", {
-        childProfileId: session.child_profile_id,
-        holdingId,
-        dbError: upsertError?.message,
-      });
-      res.status(500).json({ error: "HOLDING_WRITE_ERROR", message: "Could not save your progress." });
-      return;
+    let holding = existingHolding;
+
+    if (!holding) {
+      const { data: inserted, error: upsertError } = await supabase
+        .from("world_holdings")
+        .upsert(
+          {
+            child_profile_id: session.child_profile_id,
+            holding_id: holdingId,
+            unlocked_by_mission_id: unlockedByMissionId,
+          },
+          { onConflict: "child_profile_id,holding_id" },
+        )
+        .select("holding_id, unlocked_by_mission_id, unlocked_at")
+        .single();
+
+      if (upsertError || !inserted) {
+        log("error", "POST /holdings: failed to upsert world_holdings", {
+          childProfileId: session.child_profile_id,
+          holdingId,
+          dbError: upsertError?.message,
+        });
+        res.status(500).json({ error: "HOLDING_WRITE_ERROR", message: "Could not save your progress." });
+        return;
+      }
+      holding = inserted;
     }
 
     const row = holding as { holding_id: string; unlocked_by_mission_id: string; unlocked_at: string };
