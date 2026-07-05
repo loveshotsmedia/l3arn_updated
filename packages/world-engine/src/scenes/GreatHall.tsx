@@ -23,6 +23,8 @@ import { HallArchitecture, TORCH_MOUNTS } from '../objects/HallArchitecture';
 import { TorchSconces } from '../objects/TorchSconces';
 import { DustMotes } from '../objects/DustMotes';
 import { Hearth } from '../objects/Hearth';
+import { GroveNook } from '../objects/GroveNook';
+import { StudyShelf } from '../objects/StudyShelf';
 import {
   createStoneTileTexture,
   createStoneBlockTexture,
@@ -165,6 +167,12 @@ export function GreatHall({ onEvent, displayName = 'Explorer', house }: ScenePro
 
       {/* Grand hearth — left wall; fire freezes in Mission mode (two-modes law). */}
       <Hearth />
+
+      {/* Companion Grove nook — far corner; lantern pulse freezes in Mission mode (two-modes law). */}
+      <GroveNook />
+
+      {/* Study shelf — colorful book spines on the left wall (static). */}
+      <StudyShelf position={[-14.15, 0, 0]} rotation={[0, Math.PI / 2, 0]} />
 
       {/* Sorting Computer — Mission 001 trigger (ADR-027 / hero slice), standing on the dais.
           The terminal's group origin is at its base, so y = the dais top surface (0.4). */}
