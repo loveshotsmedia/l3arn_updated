@@ -24,6 +24,7 @@ export function Hearth() {
   const flameMatA = useRef<MeshStandardMaterial>(null);
   const flameMatB = useRef<MeshStandardMaterial>(null);
   const emberMat = useRef<MeshStandardMaterial>(null);
+  const mantelFlameMat = useRef<MeshStandardMaterial>(null);
 
   useFrame((state) => {
     // Two-modes law: fire freezes in Mission mode (spec §4).
@@ -32,6 +33,7 @@ export function Hearth() {
     if (flameMatA.current) flameMatA.current.emissiveIntensity = flickerIntensity(t, 11, 2.5, 0.7);
     if (flameMatB.current) flameMatB.current.emissiveIntensity = flickerIntensity(t, 12, 2.3, 0.6);
     if (emberMat.current) emberMat.current.emissiveIntensity = flickerIntensity(t, 13, 1.1, 0.25);
+    if (mantelFlameMat.current) mantelFlameMat.current.emissiveIntensity = flickerIntensity(t, 14, 1.9, 0.45);
   });
 
   return (
@@ -116,6 +118,56 @@ export function Hearth() {
           toneMapped={false}
         />
       </mesh>
+      {/* ── Mantel dressing (pass 9) ── */}
+      {/* Brass candlesticks at each end of the mantel shelf */}
+      {[-1.4, 1.4].map((z) => (
+        <group key={`mstick-${z}`} position={[0.75, 2.36, z]}>
+          <mesh castShadow>
+            <cylinderGeometry args={[0.05, 0.08, 0.3, 8]} />
+            <meshStandardMaterial color="#b08d3e" roughness={0.35} metalness={0.75} />
+          </mesh>
+          <mesh position={[0, 0.24, 0]}>
+            <cylinderGeometry args={[0.035, 0.04, 0.18, 8]} />
+            <meshStandardMaterial color="#e8dcc0" roughness={0.6} />
+          </mesh>
+        </group>
+      ))}
+      {/* Shared flickering flames for both candlesticks (one material ref, one draw call) */}
+      <mesh position={[0.75, 2.78, -1.4]}>
+        <coneGeometry args={[0.04, 0.13, 6]} />
+        <meshStandardMaterial
+          ref={mantelFlameMat}
+          color="#ffc46b"
+          emissive="#ffc46b"
+          emissiveIntensity={1.9}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh position={[0.75, 2.78, 1.4]}>
+        <coneGeometry args={[0.04, 0.13, 6]} />
+        <meshStandardMaterial
+          color="#ffc46b"
+          emissive="#ffc46b"
+          emissiveIntensity={1.9}
+          toneMapped={false}
+        />
+      </mesh>
+
+      {/* Framed portrait on the chimney breast above the mantel */}
+      <group position={[0.68, 3.75, 0]}>
+        <mesh castShadow>
+          <boxGeometry args={[0.08, 1.25, 0.95]} />
+          <meshStandardMaterial color="#c9a24a" roughness={0.35} metalness={0.65} />
+        </mesh>
+        <mesh position={[0.045, 0, 0]}>
+          <boxGeometry args={[0.02, 1.05, 0.75]} />
+          <meshStandardMaterial color="#2b2455" roughness={0.7} emissive="#4338ca" emissiveIntensity={0.25} />
+        </mesh>
+        <mesh position={[0.06, 0.05, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <torusGeometry args={[0.22, 0.03, 8, 20]} />
+          <meshStandardMaterial color="#c9a24a" roughness={0.35} metalness={0.7} emissive="#c9a24a" emissiveIntensity={0.3} />
+        </mesh>
+      </group>
     </group>
   );
 }
