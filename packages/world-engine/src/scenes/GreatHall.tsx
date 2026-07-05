@@ -46,7 +46,7 @@ export function GreatHall({ onEvent, displayName = 'Explorer', house }: ScenePro
   // Warm depth fog — softens the far corners without touching the sky
   // (three.js scene fog never applies to the environment background).
   useEffect(() => {
-    scene.fog = new Fog('#c8b49a', 32, 95);
+    scene.fog = new Fog('#d6ac82', 32, 95);
     return () => {
       scene.fog = null;
     };
