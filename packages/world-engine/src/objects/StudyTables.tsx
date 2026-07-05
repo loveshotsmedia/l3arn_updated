@@ -18,6 +18,7 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Instances, Instance } from '@react-three/drei';
+import { DoubleSide } from 'three';
 import type { MeshStandardMaterial } from 'three';
 import { useWorldStore } from '../state/worldStore';
 import { flickerIntensity } from '../systems/ambientFlicker';
@@ -101,6 +102,40 @@ export function StudyTables() {
             )),
           ),
         )}
+      </Instances>
+
+      {/* Open books — two angled page-planes over a dark cover, one per table */}
+      <Instances castShadow>
+        <boxGeometry args={[0.5, 0.03, 0.36]} />
+        <meshStandardMaterial color="#3a2a1c" roughness={0.8} />
+        {TABLE_XS.map((x, ti) => (
+          <Instance key={`opencover-${ti}`} position={[x + (ti === 0 ? 0.3 : -0.3), 1.0, TABLE_Z + (ti === 0 ? 0.9 : -1.6)]} rotation={[0, ti === 0 ? 0.4 : -0.6, 0]} />
+        ))}
+      </Instances>
+      <Instances>
+        <planeGeometry args={[0.24, 0.34]} />
+        <meshStandardMaterial color="#f2e8d5" roughness={0.9} side={DoubleSide} />
+        {TABLE_XS.flatMap((x, ti) => {
+          const bx = x + (ti === 0 ? 0.3 : -0.3);
+          const bz = TABLE_Z + (ti === 0 ? 0.9 : -1.6);
+          const yaw = ti === 0 ? 0.4 : -0.6;
+          return [-1, 1].map((side) => (
+            <Instance
+              key={`pages-${ti}-${side}`}
+              position={[bx + Math.cos(yaw) * side * 0.115, 1.045, bz - Math.sin(yaw) * side * 0.115]}
+              rotation={[-Math.PI / 2 + side * 0.28, yaw, 0, 'YXZ']}
+            />
+          ));
+        })}
+      </Instances>
+
+      {/* Ink pots beside the open books */}
+      <Instances castShadow>
+        <cylinderGeometry args={[0.05, 0.06, 0.11, 8]} />
+        <meshStandardMaterial color="#1f2430" roughness={0.4} metalness={0.3} />
+        {TABLE_XS.map((x, ti) => (
+          <Instance key={`ink-${ti}`} position={[x + (ti === 0 ? 0.62 : -0.62), 1.04, TABLE_Z + (ti === 0 ? 1.25 : -1.95)]} />
+        ))}
       </Instances>
 
       {/* Candle sticks */}
