@@ -26,6 +26,7 @@ import { Hearth } from '../objects/Hearth';
 import { GroveNook } from '../objects/GroveNook';
 import { StudyShelf } from '../objects/StudyShelf';
 import { StudyTables } from '../objects/StudyTables';
+import { Chandeliers } from '../objects/Chandeliers';
 import {
   createStoneTileTexture,
   createStoneBlockTexture,
@@ -177,6 +178,9 @@ export function GreatHall({ onEvent, displayName = 'Explorer', house }: ScenePro
 
       {/* Study tables flanking the runner — candle flicker freezes in Mission mode (two-modes law). */}
       <StudyTables />
+
+      {/* Chandeliers over the runner — candle flicker freezes in Mission mode (two-modes law). */}
+      <Chandeliers />
 
       {/* Sorting Computer — Mission 001 trigger (ADR-027 / hero slice), standing on the dais.
           The terminal's group origin is at its base, so y = the dais top surface (0.4). */}
