@@ -81,7 +81,7 @@ describe("MissionCompiler.compileStart", () => {
     expect(out.student3dMission.storyHook).toContain("Ziggy");
     expect(out.envelope.result.status).toBe("validated");
     // Audit envelope must attribute fast-start content to the 3D prompt version.
-    expect(out.envelope.promptTemplateVersion).toBe("3d-0.2.0");
+    expect(out.envelope.promptTemplateVersion).toBe("3d-0.3.0");
   });
 
   it("uses MISSION_START_MODEL for the call and records it in the envelope", async () => {

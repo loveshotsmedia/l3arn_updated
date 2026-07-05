@@ -9,6 +9,8 @@
  *   - POST /api/student/session/house → academy_identities.house persists,
  *                                        child_profiles.sorting_complete = true
  *   - POST /api/student/session/companion → companion_profiles upsert (bond kept)
+ *   - POST /api/student/session/holdings → world_holdings upsert; re-unlock is a
+ *     true no-op (200, unchanged unlockedAt) — not a 500
  *   - fail-closed: bad token → 401, revoked → 410, expired → 410
  *
  * Env:
@@ -307,6 +309,57 @@ async function main() {
 
   const { data: ledgerAfter } = await supabase.from("moolah_ledger").select("id").eq("source_id", attemptId);
   check("idempotency: still one moolah_ledger row", (ledgerAfter?.length ?? 0) === 1, `count ${ledgerAfter?.length}`);
+
+  // ── 5f. Holdings: unlock + idempotent re-unlock (must NOT 500) ──────────────
+  const unlockRes = await fetch(`${API}/api/student/session/holdings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ holdingId: "fractions-observatory", unlockedByMissionId: "mission-001" }),
+  });
+  const unlockBody = await unlockRes.json().catch(() => ({}));
+  check("holdings: first unlock 200", unlockRes.status === 200, `status ${unlockRes.status} ${JSON.stringify(unlockBody)}`);
+  check("holdings: response holdingId correct", unlockBody?.holding?.holdingId === "fractions-observatory");
+  const firstUnlockedAt = unlockBody?.holding?.unlockedAt;
+  check("holdings: response has unlockedAt", !!firstUnlockedAt);
+
+  const { data: holdingRow } = await supabase
+    .from("world_holdings")
+    .select("holding_id, unlocked_by_mission_id, unlocked_at")
+    .eq("child_profile_id", child.id)
+    .eq("holding_id", "fractions-observatory")
+    .single();
+  check("DB: world_holdings row persisted", holdingRow?.holding_id === "fractions-observatory", JSON.stringify(holdingRow));
+
+  // Re-unlock the SAME holding — regression case: the previous implementation
+  // used `upsert(..., { ignoreDuplicates: true }).select().single()`, and
+  // PostgREST never returns a conflict-skipped row, so this 500'd with
+  // "Cannot coerce the result to a single JSON object" on every replay.
+  const reunlockRes = await fetch(`${API}/api/student/session/holdings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ holdingId: "fractions-observatory", unlockedByMissionId: "mission-001" }),
+  });
+  const reunlockBody = await reunlockRes.json().catch(() => ({}));
+  check("holdings: re-unlock is 200, not 500", reunlockRes.status === 200, `status ${reunlockRes.status} ${JSON.stringify(reunlockBody)}`);
+  check("holdings: re-unlock is a true no-op (unlockedAt unchanged)", reunlockBody?.holding?.unlockedAt === firstUnlockedAt, `first=${firstUnlockedAt} second=${reunlockBody?.holding?.unlockedAt}`);
+
+  const { data: holdingsAfter } = await supabase
+    .from("world_holdings")
+    .select("holding_id")
+    .eq("child_profile_id", child.id)
+    .eq("holding_id", "fractions-observatory");
+  check("DB: still exactly one world_holdings row (no duplicate)", (holdingsAfter?.length ?? 0) === 1, `count ${holdingsAfter?.length}`);
+
+  // GET must reflect it too
+  const getHoldingsRes = await fetch(`${API}/api/student/session/holdings`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const getHoldingsBody = await getHoldingsRes.json().catch(() => ({}));
+  check(
+    "holdings: GET reflects the unlocked holding",
+    (getHoldingsBody.holdings ?? []).some((h) => h.holdingId === "fractions-observatory"),
+    JSON.stringify(getHoldingsBody),
+  );
 
   // ── 6. Fail-closed cases ─────────────────────────────────────────────────────
   const badTokRes = await fetch(`${API}/api/sessions/verify`, {
