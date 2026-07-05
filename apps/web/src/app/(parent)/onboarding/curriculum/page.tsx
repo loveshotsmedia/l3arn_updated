@@ -211,10 +211,9 @@ function CurriculumSetupContent() {
       const existingTopics: string[] = existingPerms?.blocked_topics ?? [];
       const mergedTopics = Array.from(new Set([...existingTopics, ...additionalBlockedTopics]));
 
-      // Store focus_subjects as a JSON field.
-      // Note: child_permissions table does not yet have a focus_subjects column.
-      // This upsert saves the merged blocked_topics. Focus subjects are stored
-      // in a comment pending schema addition.
+      // child_permissions holds the access-control blocked_topics (merged from
+      // step 4). Curriculum focus_subjects are persisted to parent_curriculum_prefs
+      // just below — that is the table the dashboard and Mission Compiler read.
       const { error: permError } = await supabase.from("child_permissions").upsert(
         {
           child_profile_id: childProfileId,
@@ -227,6 +226,39 @@ function CurriculumSetupContent() {
       );
 
       if (permError) throw permError;
+
+      // Persist curriculum preferences to parent_curriculum_prefs — the table the
+      // dashboard (dashboard/page.tsx) and Mission Compiler read. Before this,
+      // focus_subjects only lived in local form state and were never written, so
+      // the dashboard always showed "No curriculum preferences set yet" and the
+      // Mission Compiler never saw the parent's focus. household_id is required by
+      // the table (NOT NULL) and by RLS (must be one of the parent's households).
+      const { data: childRow, error: childReadError } = await supabase
+        .from("child_profiles")
+        .select("household_id")
+        .eq("id", childProfileId)
+        .eq("parent_account_id", session.user.id)
+        .single();
+
+      if (childReadError) throw childReadError;
+      if (!childRow?.household_id) {
+        throw new Error("Could not resolve the household for curriculum preferences.");
+      }
+
+      // Upsert on the child_profile_id UNIQUE constraint (003:56). approval_mode is
+      // intentionally omitted so it keeps its 'balanced' default on insert and is
+      // left untouched on update (this form does not collect it).
+      const { error: curriculumError } = await supabase.from("parent_curriculum_prefs").upsert(
+        {
+          child_profile_id: childProfileId,
+          household_id: childRow.household_id as string,
+          focus_subjects: focusSubjects,
+          blocked_topics: mergedTopics,
+        },
+        { onConflict: "child_profile_id" },
+      );
+
+      if (curriculumError) throw curriculumError;
 
       if (isEditMode) {
         // Post-onboarding edit: redirect back to the child's report page
