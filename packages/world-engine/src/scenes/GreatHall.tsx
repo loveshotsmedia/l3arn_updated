@@ -25,6 +25,7 @@ import { DustMotes } from '../objects/DustMotes';
 import { Hearth } from '../objects/Hearth';
 import { GroveNook } from '../objects/GroveNook';
 import { StudyShelf } from '../objects/StudyShelf';
+import { StudyTables } from '../objects/StudyTables';
 import {
   createStoneTileTexture,
   createStoneBlockTexture,
@@ -173,6 +174,9 @@ export function GreatHall({ onEvent, displayName = 'Explorer', house }: ScenePro
 
       {/* Study shelf — colorful book spines on the left wall (static). */}
       <StudyShelf position={[-14.15, 0, 0]} rotation={[0, Math.PI / 2, 0]} />
+
+      {/* Study tables flanking the runner — candle flicker freezes in Mission mode (two-modes law). */}
+      <StudyTables />
 
       {/* Sorting Computer — Mission 001 trigger (ADR-027 / hero slice), standing on the dais.
           The terminal's group origin is at its base, so y = the dais top surface (0.4). */}
