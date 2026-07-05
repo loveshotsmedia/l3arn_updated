@@ -50,6 +50,9 @@ export function PlayerAvatar({
   const hoodColor = darken(houseColor, 0.72);
   const world = useWorldStore((s) => s.world);
   const ensurePlayerEntity = useWorldStore((s) => s.ensurePlayerEntity);
+  // Name label is Explore-mode chrome — hidden during missions (spec §4), which
+  // also keeps drei's high-z-index Html from bleeding through the mission overlay.
+  const worldMode = useWorldStore((s) => s.worldMode);
 
   useEffect(() => {
     ensurePlayerEntity(initialPosition, houseColor);
@@ -131,6 +134,7 @@ export function PlayerAvatar({
         <meshStandardMaterial color="#c9a24a" roughness={0.4} metalness={0.6} />
       </mesh>
 
+      {worldMode === 'explore' && (
       <Html position={[0, 1.4, 0]} center distanceFactor={10} style={{ pointerEvents: 'none' }}>
         <div
           style={{
@@ -147,6 +151,7 @@ export function PlayerAvatar({
           {displayName}
         </div>
       </Html>
+      )}
     </group>
   );
 }
