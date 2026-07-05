@@ -200,6 +200,17 @@ export function HallArchitecture() {
         <Instance position={[8, 10.15, 15]} scale={[14.3, 0.35, 1.35]} />
       </Instances>
 
+      {/* ── Wainscot skirting along all wall bases — grounds the walls to the floor (1 draw call) ── */}
+      <Instances castShadow receiveShadow>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color="#3d3450" roughness={0.85} metalness={0.03} />
+        <Instance position={[0, 0.5, -14.4]} scale={[30.4, 1.0, 0.26]} />
+        <Instance position={[-14.4, 0.5, 0]} scale={[0.26, 1.0, 30.4]} />
+        <Instance position={[14.4, 0.5, 0]} scale={[0.26, 1.0, 30.4]} />
+        <Instance position={[-8.6, 0.5, 14.4]} scale={[12.8, 1.0, 0.26]} />
+        <Instance position={[8.6, 0.5, 14.4]} scale={[12.8, 1.0, 0.26]} />
+      </Instances>
+
       {/* ── Dais glow ring — indigo floor inlay tying the dais to the terminal glow (1 draw call) ── */}
       <mesh position={[0, 0.02, -10]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[3.55, 3.8, 48]} />
