@@ -20,6 +20,18 @@ function resolveExpected(leaf: RulePredicateLeaf, attributes: ItemAttributes): u
 }
 
 function evaluateLeaf(leaf: RulePredicateLeaf, attributes: ItemAttributes): boolean {
+  // Fail closed: a missing field (absent key, not just a falsy value) can
+  // never satisfy a correctness rule. ItemAttributesSchema is an open
+  // dictionary, so an AI-generated item that omits or typos a field still
+  // passes schema validation — the presence check below is what stops that
+  // from silently scoring as "correct" (spec §6).
+  if (!(leaf.field in attributes)) {
+    return false;
+  }
+  if (leaf.compareField !== undefined && !(leaf.compareField in attributes)) {
+    return false;
+  }
+
   const actual = attributes[leaf.field];
   const expected = resolveExpected(leaf, attributes);
 

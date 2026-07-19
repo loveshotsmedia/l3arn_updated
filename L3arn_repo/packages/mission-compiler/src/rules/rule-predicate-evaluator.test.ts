@@ -18,17 +18,30 @@ describe("evaluateRulePredicate", () => {
       expect(evaluateRulePredicate(predicate, { sides: 3 })).toBe(true);
     });
 
+    it("neq: false when attribute equals the literal value", () => {
+      const predicate: RulePredicate = { field: "sides", op: "neq", value: 4 };
+      expect(evaluateRulePredicate(predicate, { sides: 4 })).toBe(false);
+    });
+
     it("gt/gte/lt/lte compare numbers correctly", () => {
       expect(evaluateRulePredicate({ field: "sides", op: "gt", value: 3 }, { sides: 4 })).toBe(true);
       expect(evaluateRulePredicate({ field: "sides", op: "gt", value: 4 }, { sides: 4 })).toBe(false);
       expect(evaluateRulePredicate({ field: "sides", op: "gte", value: 4 }, { sides: 4 })).toBe(true);
+      expect(evaluateRulePredicate({ field: "sides", op: "gte", value: 5 }, { sides: 4 })).toBe(false);
       expect(evaluateRulePredicate({ field: "sides", op: "lt", value: 4 }, { sides: 3 })).toBe(true);
+      expect(evaluateRulePredicate({ field: "sides", op: "lt", value: 4 }, { sides: 4 })).toBe(false);
       expect(evaluateRulePredicate({ field: "sides", op: "lte", value: 4 }, { sides: 4 })).toBe(true);
+      expect(evaluateRulePredicate({ field: "sides", op: "lte", value: 3 }, { sides: 4 })).toBe(false);
     });
 
     it("gt: false when the attribute is not a number", () => {
       const predicate: RulePredicate = { field: "color", op: "gt", value: 1 };
       expect(evaluateRulePredicate(predicate, { color: "red" })).toBe(false);
+    });
+
+    it("fails closed: false when the field is absent from attributes (even for neq)", () => {
+      const predicate: RulePredicate = { field: "claimedSides", op: "neq", value: 6 };
+      expect(evaluateRulePredicate(predicate, {})).toBe(false);
     });
 
     it("in: true when attribute is one of the listed values", () => {
@@ -51,6 +64,11 @@ describe("evaluateRulePredicate", () => {
     it("neq: false when two attributes on the same item are equal", () => {
       const predicate: RulePredicate = { field: "claimedSides", op: "neq", compareField: "actualSides" };
       expect(evaluateRulePredicate(predicate, { claimedSides: 6, actualSides: 6 })).toBe(false);
+    });
+
+    it("fails closed: false when the compareField is absent from attributes (both undefined must not read as equal)", () => {
+      const predicate: RulePredicate = { field: "claimedSides", op: "neq", compareField: "actualSides" };
+      expect(evaluateRulePredicate(predicate, {})).toBe(false);
     });
   });
 
