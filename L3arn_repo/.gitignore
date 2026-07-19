@@ -43,3 +43,6 @@ Thumbs.db
 
 .vercel
 .env*
+
+# superpowers brainstorming visual companion (local scratch, not for commit)
+.superpowers/
