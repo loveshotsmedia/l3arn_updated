@@ -109,7 +109,17 @@ export type CompanionDialogueLine = z.infer<typeof CompanionDialogueLineSchema>;
 export const MissionTaskSchema = z.object({
   id: z.string(),
   description: z.string(),
-  interactionType: z.enum(["click", "drag", "choice", "text-input", "observe", "sequence"]),
+  interactionType: z.enum([
+    "click",
+    "drag",
+    "choice",
+    "text-input",
+    "observe",
+    "sequence",
+    "sort-categorize",
+    "apply-to-new",
+    "ai-mistake-check",
+  ]),
   assetRefs: z.array(z.string()).optional(),
   isEvidenceCapturePoint: z.boolean(),
 });
