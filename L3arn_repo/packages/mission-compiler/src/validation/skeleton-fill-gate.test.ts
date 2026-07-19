@@ -117,6 +117,15 @@ describe("validateSkeletonFill", () => {
     expect(result.failures.map((f) => f.code)).toContain("correct-item-fails-rule");
   });
 
+  it("fails closed when the correct item's attributes omit a field the rule references", () => {
+    const badFill = makeValidFill({
+      correctItem: { itemId: "item-missing-field", attributes: {}, presentationText: "x", readAloudScript: "x" },
+    });
+    const result = validateSkeletonFill(makeSkeleton(), badFill);
+    expect(result.valid).toBe(false);
+    expect(result.failures.map((f) => f.code)).toContain("correct-item-fails-rule");
+  });
+
   it("fails when a distractor actually satisfies the correct-answer rule", () => {
     const badFill = makeValidFill({
       distractorItems: [
