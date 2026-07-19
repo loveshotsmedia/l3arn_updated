@@ -25,7 +25,7 @@ const RulePredicateValueSchema = z.union([
   z.string(),
   z.number(),
   z.boolean(),
-  z.array(z.union([z.string(), z.number()])),
+  z.array(z.union([z.string(), z.number()])).min(1),
 ]);
 
 export const RulePredicateLeafSchema = z
@@ -100,9 +100,18 @@ export type HintTier = z.infer<typeof HintTierSchema>;
 
 export const HintLadderSchema = z
   .tuple([HintTierSchema, HintTierSchema, HintTierSchema])
-  .refine((ladder) => ladder[0].tier === 1 && ladder[1].tier === 2 && ladder[2].tier === 3, {
-    message: "Hint ladder must be exactly 3 tiers in order: 1 (nudge), 2 (re-explain), 3 (state-rule)",
-  });
+  .refine(
+    (ladder) =>
+      ladder[0].tier === 1 &&
+      ladder[1].tier === 2 &&
+      ladder[2].tier === 3 &&
+      ladder[0].kind === "nudge" &&
+      ladder[1].kind === "re-explain" &&
+      ladder[2].kind === "state-rule",
+    {
+      message: "Hint ladder must be exactly 3 tiers in order: 1 (nudge), 2 (re-explain), 3 (state-rule)",
+    },
+  );
 export type HintLadder = z.infer<typeof HintLadderSchema>;
 
 // ─── Distractor Rule ───────────────────────────────────────────────────────────

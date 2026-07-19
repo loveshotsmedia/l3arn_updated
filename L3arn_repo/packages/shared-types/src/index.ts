@@ -18,6 +18,7 @@
  *     └── permissions.schema ← imports VisibilityTierSchema
  *   evidence.schema       ← string IDs only; no cross-schema imports
  *   parent-report.schema  ← string IDs only; no cross-schema imports
+ *   lesson-skeleton.schema ← imports MasteryLevelSchema from mission.schema
  *   moderation.schema     ← string IDs only; no cross-schema imports
  *   ai.schema             ← string IDs only; no cross-schema imports
  */
