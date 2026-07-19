@@ -88,3 +88,20 @@ export {
   getEvidenceSpecForTask,
   type Mission001EvidenceSpec,
 } from "./evidence/mission-001-evidence-capture";
+
+// ── Rule predicate evaluator (deterministic correctness gate, part 1) ────────
+export { evaluateRulePredicate } from "./rules/rule-predicate-evaluator";
+
+// ── Skeleton-fill correctness gate (deterministic correctness gate, part 2) ──
+export {
+  validateSkeletonFill,
+  type GateFailure,
+  type GateFailureCode,
+  type GateResult,
+} from "./validation/skeleton-fill-gate";
+
+// ── Worked example: AI-mistake-check skeleton (spec §5) ──────────────────────
+export {
+  AI_MISTAKE_SHAPE_SIDES_SKELETON,
+  AI_MISTAKE_SHAPE_SIDES_SKELETON_FIXTURE_ID,
+} from "./curriculum/skeletons/ai-mistake-shape-sides.skeleton";
