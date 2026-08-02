@@ -16,7 +16,7 @@
  * Grounded in: docs/superpowers/specs/2026-07-19-lesson-engine-content-contract-design.md §5
  */
 
-import type { LessonTaskSkeleton } from "@l3arn/shared-types";
+import type { LessonTaskSkeleton, SkeletonFill } from "@l3arn/shared-types";
 
 export const AI_MISTAKE_SHAPE_SIDES_SKELETON_FIXTURE_ID = "00000000-0000-4000-8000-000000000001";
 const PLACEHOLDER_MASTERY_SKILL_ID = "00000000-0000-4000-8000-0000000000f1";
@@ -56,4 +56,53 @@ export const AI_MISTAKE_SHAPE_SIDES_SKELETON: LessonTaskSkeleton = {
   ],
   isActive: true,
   version: 1,
+};
+
+// The real, servable fixture fill for this skeleton — used by both the
+// mission-001 lesson sequence (sub-project 2, adaptive lesson runtime) and
+// this file's own test suite. Verified against the rules above:
+//   correctAnswerRule:    { field: "claimedSides", op: "neq", compareField: "actualSides" }
+//   distractorRule:       { count: 2, plausibilityRule: { field: "claimedSides", op: "eq", compareField: "actualSides" } }
+//   transferExampleRule:  { field: "claimedSides", op: "neq", compareField: "actualSides" }
+export const AI_MISTAKE_SHAPE_SIDES_FILL: SkeletonFill = {
+  skeletonId: AI_MISTAKE_SHAPE_SIDES_SKELETON_FIXTURE_ID,
+  variantKey: {
+    skeletonId: AI_MISTAKE_SHAPE_SIDES_SKELETON_FIXTURE_ID,
+    learningStyle: "reading-writing",
+    readingTier: "grade-level",
+    l3arnMasteryLevel: "emerging",
+  },
+  storyFlavor: "The Sorting Computer studied a glowing crystal and reported its findings to you.",
+  correctItem: {
+    itemId: "critique-correct",
+    attributes: { claimedSides: 5, actualSides: 6 },
+    presentationText:
+      'The companion said: "This crystal has 5 sides." But count them yourself — it actually has 6. The companion made a mistake!',
+    readAloudScript:
+      "The companion said this crystal has 5 sides. But if you count them yourself, it actually has 6. The companion made a mistake!",
+  },
+  distractorItems: [
+    {
+      itemId: "critique-distractor-a",
+      attributes: { claimedSides: 6, actualSides: 6 },
+      presentationText: 'The companion said: "This crystal has 6 sides," and it does have 6 sides. That\'s correct, not a mistake.',
+      readAloudScript: "The companion said this crystal has 6 sides, and it does have 6 sides. That is correct, not a mistake.",
+    },
+    {
+      itemId: "critique-distractor-b",
+      attributes: { claimedSides: 4, actualSides: 4 },
+      presentationText: 'The companion said: "This crystal has 4 sides," and it does have 4 sides. That\'s correct, not a mistake.',
+      readAloudScript: "The companion said this crystal has 4 sides, and it does have 4 sides. That is correct, not a mistake.",
+    },
+  ],
+  transferItem: {
+    itemId: "critique-transfer",
+    attributes: { claimedSides: 3, actualSides: 5 },
+    presentationText:
+      'Now look at this NEW crystal. The companion said: "This one has 3 sides." Count the real crystal — is the companion right this time?',
+    readAloudScript:
+      "Now look at this new crystal. The companion said this one has 3 sides. Count the real crystal. Is the companion right this time?",
+  },
+  hintLadderFill: AI_MISTAKE_SHAPE_SIDES_SKELETON.hintLadder,
+  companionDialogueLine: "Wait... let's double check my math on that last one!",
 };
