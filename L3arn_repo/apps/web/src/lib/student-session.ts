@@ -19,6 +19,7 @@ import type {
   SelectableHouse,
   StartMissionResponse,
   CompleteMissionResponse,
+  MissionLessonResponse,
 } from "@l3arn/shared-types";
 
 const TOKEN_KEY = "l3arn_session_token";
@@ -265,9 +266,61 @@ async function authedPost<T>(path: string, body: unknown): Promise<ApiOutcome<T>
   }
 }
 
+async function authedGet<T>(path: string): Promise<ApiOutcome<T>> {
+  const base = railwayBaseUrl();
+  if (!base) return NOT_CONFIGURED;
+
+  const token = getSessionToken();
+  if (!token) {
+    return {
+      ok: false,
+      status: 401,
+      error: "SESSION_TOKEN_MISSING",
+      message: "Your session could not be found. Ask a parent to start a new one.",
+    };
+  }
+
+  try {
+    const res = await fetch(`${base}${path}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const { error, message } = await parseError(res);
+      return { ok: false, status: res.status, error, message };
+    }
+    return { ok: true, data: (await res.json()) as T };
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      error: "NETWORK_ERROR",
+      message: "Could not reach the Academy. Check your connection and try again.",
+    };
+  }
+}
+
 /** Start a mission: backend compiles (validated/fallback) + creates the attempt. */
 export function startMission(missionId = "mission-001"): Promise<ApiOutcome<StartMissionResponse>> {
   return authedPost<StartMissionResponse>("/api/student/mission/start", { missionId });
+}
+
+/** Fetch the adaptive lesson task sequence for a mission attempt. */
+export function fetchMissionLesson(
+  missionId: string,
+  missionAttemptId: string,
+): Promise<ApiOutcome<MissionLessonResponse>> {
+  return authedGet<MissionLessonResponse>(
+    `/api/student/mission/${missionId}/lesson?missionAttemptId=${encodeURIComponent(missionAttemptId)}`,
+  );
+}
+
+/** Persist which task the child was on, for resume-on-re-entry. */
+export function updateTaskIndex(
+  missionAttemptId: string,
+  taskIndex: number,
+): Promise<ApiOutcome<{ ok: true }>> {
+  return authedPost<{ ok: true }>("/api/student/mission/task-index", { missionAttemptId, taskIndex });
 }
 
 export interface CompleteMissionInput {
