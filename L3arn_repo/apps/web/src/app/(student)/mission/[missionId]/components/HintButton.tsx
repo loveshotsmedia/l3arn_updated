@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { HintLadder } from "@l3arn/shared-types";
 
 interface HintButtonProps {
@@ -15,6 +15,14 @@ interface HintButtonProps {
 export function HintButton({ hintLadder }: HintButtonProps) {
   const [tier, setTier] = useState(0); // 0 = not yet requested
 
+  // Reset escalation whenever a new task's hint ladder arrives so a child who
+  // reached tier 3 on the previous task doesn't see stale/advanced hint
+  // content before tapping again on the new task. This makes the component
+  // correct even if a future integrator forgets to force a remount via `key`.
+  useEffect(() => {
+    setTier(0);
+  }, [hintLadder]);
+
   function handleTap() {
     setTier((prev) => Math.min(prev + 1, 3));
   }
@@ -26,7 +34,11 @@ export function HintButton({ hintLadder }: HintButtonProps) {
       <button style={hintStyles.button} onClick={handleTap}>
         I&apos;m stuck?
       </button>
-      {activeHint && <p style={hintStyles.hintText}>{activeHint.content}</p>}
+      {activeHint && (
+        <p style={hintStyles.hintText} aria-live="polite">
+          {activeHint.content}
+        </p>
+      )}
     </div>
   );
 }
