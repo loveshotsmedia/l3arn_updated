@@ -30,9 +30,16 @@ export function OptionListTask({ skeleton, fill, onCorrect, onWrong, isTransferS
 
   const correctItemId = isTransferStep ? fill.transferItem.itemId : fill.correctItem.itemId;
 
-  // Stable order per render (not re-shuffled on re-render, so a wrong tap's
-  // visual feedback doesn't reorder the list under the child).
-  const orderedOptions = isTransferStep ? options : [...options].sort((a, b) => a.itemId.localeCompare(b.itemId));
+  // Deterministic-but-correctness-independent order: sort by a hash of each
+  // itemId, not by itemId text itself. A plain alphabetical sort is NOT safe
+  // here — real fixtures name items things like "critique-correct" vs.
+  // "critique-distractor-a", and "correct" < "distractor" alphabetically, so
+  // the correct answer would render first on every single mount, letting a
+  // child learn "always tap first" without reading any option. Hashing the
+  // id breaks that correlation while staying stable across re-renders (same
+  // fill -> same order every time), so a wrong tap's visual feedback still
+  // doesn't reorder the list under the child.
+  const orderedOptions = isTransferStep ? options : [...options].sort((a, b) => hashString(a.itemId) - hashString(b.itemId));
 
   function handleSelect(itemId: string) {
     if (resolved) return;
@@ -75,6 +82,32 @@ export function OptionListTask({ skeleton, fill, onCorrect, onWrong, isTransferS
       </div>
     </div>
   );
+}
+
+/**
+ * Deterministic string hash (FNV-1a followed by a murmur3-style avalanche
+ * finalizer). Used purely to derive a stable, correctness-independent
+ * display order for options (see orderedOptions above) — this is NOT for
+ * security/uniqueness. The finalizer matters: plain FNV-1a alone still
+ * clusters similar-prefixed strings (e.g. "critique-correct" vs.
+ * "critique-distractor-a/-b", the real ai-mistake-check itemIds) into
+ * nearby hash values, which can accidentally reproduce the same
+ * always-first ordering the alphabetical sort had. The avalanche step
+ * spreads single-bit input differences across the whole output so option
+ * order can't be inferred from naming conventions like "correct"/"distractor".
+ */
+function hashString(input: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35);
+  hash ^= hash >>> 16;
+  return hash >>> 0;
 }
 
 const optionListStyles: Record<string, React.CSSProperties> = {

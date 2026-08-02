@@ -34,8 +34,44 @@ const fill: SkeletonFill = {
   companionDialogueLine: "Which one is right?",
 };
 
+// Real ai-mistake-check fixture itemIds (see
+// packages/mission-compiler/src/curriculum/skeletons/ai-mistake-shape-sides.skeleton.ts).
+// Alphabetically, "critique-correct" < "critique-distractor-a" < "critique-distractor-b",
+// so a naive itemId.localeCompare sort renders the correct answer FIRST on every
+// single mount for this exact real content — a child could learn to "always tap
+// first" without reading any option. This fixture pins down that the ordering is
+// no longer alphabetical/correctness-correlated.
+const aiMistakeCheckFill: SkeletonFill = {
+  skeletonId: skeleton.id,
+  variantKey: fill.variantKey,
+  storyFlavor: "The AI made a claim. Was it right?",
+  correctItem: { itemId: "critique-correct", attributes: { isTargetMatch: true }, presentationText: "Yes, the AI was correct.", readAloudScript: "Yes, the AI was correct." },
+  distractorItems: [
+    { itemId: "critique-distractor-a", attributes: { isTargetMatch: false }, presentationText: "No, it missed a side.", readAloudScript: "No, it missed a side." },
+    { itemId: "critique-distractor-b", attributes: { isTargetMatch: false }, presentationText: "No, it counted an extra side.", readAloudScript: "No, it counted an extra side." },
+  ],
+  transferItem: fill.transferItem,
+  hintLadderFill: skeleton.hintLadder,
+  companionDialogueLine: "What do you think?",
+};
+
 describe("OptionListTask", () => {
-  it("renders the story flavor and all three options (correct + 2 distractors) in random-stable order", () => {
+  it("does not render ai-mistake-check-style options in alphabetical order (regression: correct answer must not always land first)", () => {
+    render(<OptionListTask skeleton={skeleton} fill={aiMistakeCheckFill} onCorrect={vi.fn()} onWrong={vi.fn()} />);
+    const buttons = screen.getAllByRole("button");
+    const renderedOrder = buttons.map((btn) => btn.textContent);
+    const alphabeticalOrder = [
+      "Yes, the AI was correct.",
+      "No, it missed a side.",
+      "No, it counted an extra side.",
+    ];
+    expect(renderedOrder).not.toEqual(alphabeticalOrder);
+    // The correct option specifically must not be first, matching the concrete
+    // failure mode reported for this fixture's itemIds.
+    expect(renderedOrder[0]).not.toBe("Yes, the AI was correct.");
+  });
+
+  it("renders the story flavor and all three options (correct + 2 distractors) in a correctness-independent order", () => {
     render(<OptionListTask skeleton={skeleton} fill={fill} onCorrect={vi.fn()} onWrong={vi.fn()} />);
     expect(screen.getByText("Pick the right one.")).toBeInTheDocument();
     expect(screen.getByText("The correct option.")).toBeInTheDocument();
