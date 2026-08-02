@@ -430,6 +430,7 @@ export default function MissionPage() {
             <SpeakerButton text={currentTask.fill.storyFlavor} />
             {currentTask.skeleton.taskType === "sort-categorize" && (
               <SortTrayTask
+                key={currentTask.taskInstanceId}
                 skeleton={currentTask.skeleton}
                 fill={currentTask.fill}
                 onCorrect={handleTaskCorrect}
@@ -438,6 +439,7 @@ export default function MissionPage() {
             )}
             {currentTask.skeleton.taskType === "apply-to-new" && (
               <SortTrayTask
+                key={currentTask.taskInstanceId}
                 skeleton={currentTask.skeleton}
                 fill={currentTask.fill}
                 onCorrect={handleTaskCorrect}
@@ -447,6 +449,7 @@ export default function MissionPage() {
             )}
             {currentTask.skeleton.taskType === "ai-mistake-check" && (
               <OptionListTask
+                key={currentTask.taskInstanceId}
                 skeleton={currentTask.skeleton}
                 fill={currentTask.fill}
                 onCorrect={handleTaskCorrect}
