@@ -80,4 +80,27 @@ describe("HintButton", () => {
     fireEvent.click(button);
     expect(screen.getByText("Task two tier one nudge.")).toBeInTheDocument();
   });
+
+  it("shows a read-aloud (SpeakerButton) control only once a hint tier is active, exactly once per tier", () => {
+    render(<HintButton hintLadder={ladder} />);
+    const button = screen.getByText("I'm stuck?");
+
+    // Before any hint is requested: no read-aloud control for hint content.
+    expect(screen.queryByLabelText("Read aloud")).not.toBeInTheDocument();
+
+    // Tier 1: exactly one read-aloud control appears (not accumulating).
+    fireEvent.click(button);
+    expect(screen.getByText("Tier one nudge.")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Read aloud")).toHaveLength(1);
+
+    // Tier 2: still exactly one — the tier 1 control does not linger.
+    fireEvent.click(button);
+    expect(screen.getByText("Tier two re-explain.")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Read aloud")).toHaveLength(1);
+
+    // Tier 3: still exactly one.
+    fireEvent.click(button);
+    expect(screen.getByText("Tier three rule.")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Read aloud")).toHaveLength(1);
+  });
 });

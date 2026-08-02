@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { HintLadder } from "@l3arn/shared-types";
+import { SpeakerButton } from "./SpeakerButton";
 
 interface HintButtonProps {
   hintLadder: HintLadder;
@@ -35,9 +36,12 @@ export function HintButton({ hintLadder }: HintButtonProps) {
         I&apos;m stuck?
       </button>
       {activeHint && (
-        <p style={hintStyles.hintText} aria-live="polite">
-          {activeHint.content}
-        </p>
+        <div style={hintStyles.hintRow}>
+          <p style={hintStyles.hintText} aria-live="polite">
+            {activeHint.content}
+          </p>
+          <SpeakerButton text={activeHint.readAloudScript} />
+        </div>
       )}
     </div>
   );
@@ -56,10 +60,16 @@ const hintStyles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     cursor: "pointer",
   },
-  hintText: {
+  hintRow: {
     marginTop: "0.75rem",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+  },
+  hintText: {
     color: "#c7d2fe",
     fontStyle: "italic",
     lineHeight: 1.6,
+    margin: 0,
   },
 };
