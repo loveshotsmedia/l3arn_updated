@@ -453,7 +453,10 @@ export default function MissionPage() {
                 onWrong={handleTaskWrong}
               />
             )}
-            <HintButton hintLadder={currentTask.skeleton.hintLadder} />
+            <HintButton
+              hintLadder={currentTask.skeleton.hintLadder}
+              onEscalate={() => setHintsUsed((p) => p + 1)}
+            />
           </div>
         </div>
       );

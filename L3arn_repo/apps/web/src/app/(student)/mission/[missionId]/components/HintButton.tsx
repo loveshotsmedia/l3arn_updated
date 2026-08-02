@@ -6,6 +6,15 @@ import { SpeakerButton } from "./SpeakerButton";
 
 interface HintButtonProps {
   hintLadder: HintLadder;
+  /**
+   * Called exactly once each time the tier genuinely advances (i.e. a tap
+   * actually increases the tier). Not called for a tap that occurs once the
+   * ladder is already capped at tier 3 — that tap is a no-op escalation-wise
+   * and must not be double-counted by telemetry consumers (e.g. the
+   * mission-wide `hintsUsed` counter feeding the calibration engine's
+   * "hint-frequency" signal).
+   */
+  onEscalate?: () => void;
 }
 
 /**
@@ -13,7 +22,7 @@ interface HintButtonProps {
  * explicitly sub-project 3's job (the live tutor) — this only renders the
  * authored ladder and lets the child themselves ask for more help.
  */
-export function HintButton({ hintLadder }: HintButtonProps) {
+export function HintButton({ hintLadder, onEscalate }: HintButtonProps) {
   const [tier, setTier] = useState(0); // 0 = not yet requested
 
   // Reset escalation whenever a new task's hint ladder arrives so a child who
@@ -25,7 +34,12 @@ export function HintButton({ hintLadder }: HintButtonProps) {
   }, [hintLadder]);
 
   function handleTap() {
-    setTier((prev) => Math.min(prev + 1, 3));
+    // Read `tier` directly (not a functional setState updater) so the
+    // escalation callback — a side effect — is invoked exactly once per
+    // genuine advance, not subject to React re-invoking an updater function.
+    if (tier >= 3) return; // already capped: no-op, do not double-count
+    setTier(tier + 1);
+    onEscalate?.();
   }
 
   const activeHint = tier > 0 ? hintLadder[tier - 1] : null;

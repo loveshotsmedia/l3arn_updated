@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { HintButton } from "./HintButton";
 import type { HintLadder } from "@l3arn/shared-types";
@@ -52,6 +52,26 @@ describe("HintButton", () => {
     fireEvent.click(button);
     fireEvent.click(button);
     expect(screen.getByText("Tier three rule.")).toBeInTheDocument();
+  });
+
+  it("calls onEscalate exactly once per genuine tier advance, and not again once capped at tier 3", () => {
+    const onEscalate = vi.fn();
+    render(<HintButton hintLadder={ladder} onEscalate={onEscalate} />);
+    const button = screen.getByText("I'm stuck?");
+
+    fireEvent.click(button); // tier 0 -> 1
+    expect(onEscalate).toHaveBeenCalledTimes(1);
+    fireEvent.click(button); // tier 1 -> 2
+    expect(onEscalate).toHaveBeenCalledTimes(2);
+    fireEvent.click(button); // tier 2 -> 3
+    expect(onEscalate).toHaveBeenCalledTimes(3);
+
+    // 4th+ tap: already capped at tier 3, no genuine advance — must not
+    // increment the caller's counter again.
+    fireEvent.click(button);
+    expect(onEscalate).toHaveBeenCalledTimes(3);
+    fireEvent.click(button);
+    expect(onEscalate).toHaveBeenCalledTimes(3);
   });
 
   it("resets tier back to 0 when the hintLadder prop changes on the same instance", () => {
