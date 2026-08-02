@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { LessonTaskSkeleton, SkeletonFill } from "@l3arn/shared-types";
+import { sortByHash } from "./deterministic-order";
 
 interface SortTrayTaskProps {
   skeleton: LessonTaskSkeleton;
@@ -48,7 +49,7 @@ export function SortTrayTask({ skeleton, fill, onCorrect, onWrong, isTransferSte
   // exact bug pattern was first caught, on the ai-mistake-check fixture).
   // Hashing the id breaks that correlation while staying stable across
   // re-renders (same fill -> same order every time).
-  const orderedTray = isTransferStep ? trayItems : [...trayItems].sort((a, b) => hashString(a.itemId) - hashString(b.itemId));
+  const orderedTray = isTransferStep ? trayItems : sortByHash(trayItems);
 
   function handleTap(itemId: string) {
     if (resolved) return;
@@ -71,10 +72,17 @@ export function SortTrayTask({ skeleton, fill, onCorrect, onWrong, isTransferSte
           const colorLabel = color.charAt(0).toUpperCase() + color.slice(1);
           const isSelected = selectedId === item.itemId;
           const isCorrect = item.itemId === targetItem.itemId;
+          // aria-label fully overrides a button's accessible name, so the
+          // visible ✓/✗ feedback below (rendered as sibling text content)
+          // would otherwise never reach screen reader users once this prop
+          // is present. Append the outcome once resolved/selected so the
+          // announced name matches what sighted users see.
+          const outcomeSuffix = isSelected ? (isCorrect ? " — correct!" : " — try again") : "";
+          const crystalLabel = `${item.presentationText}${outcomeSuffix}`;
           return (
             <button
               key={item.itemId}
-              aria-label={item.presentationText}
+              aria-label={crystalLabel}
               onClick={() => handleTap(item.itemId)}
               disabled={resolved}
               style={{
@@ -95,31 +103,6 @@ export function SortTrayTask({ skeleton, fill, onCorrect, onWrong, isTransferSte
       </div>
     </div>
   );
-}
-
-/**
- * Deterministic string hash (FNV-1a followed by a murmur3-style avalanche
- * finalizer). Used purely to derive a stable, correctness-independent
- * display order for tray items (see orderedTray above) — this is NOT for
- * security/uniqueness. Kept as a local duplicate of OptionListTask.tsx's
- * identical helper rather than extracted to a shared utility: only two
- * consumers exist so far, and this codebase's existing convention (see
- * Task 9's authedGet/authedPost precedent) is to accept light duplication
- * before consolidating — extract to shared-types or a components/lib helper
- * if a third consumer shows up.
- */
-function hashString(input: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < input.length; i++) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  hash ^= hash >>> 16;
-  hash = Math.imul(hash, 0x85ebca6b);
-  hash ^= hash >>> 13;
-  hash = Math.imul(hash, 0xc2b2ae35);
-  hash ^= hash >>> 16;
-  return hash >>> 0;
 }
 
 const sortTrayStyles: Record<string, React.CSSProperties> = {

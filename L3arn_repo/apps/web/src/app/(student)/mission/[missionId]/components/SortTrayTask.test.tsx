@@ -102,4 +102,23 @@ describe("SortTrayTask", () => {
     // concrete failure mode this real round's itemIds would otherwise produce.
     expect(renderedOrder[0]).not.toBe("A blue crystal.");
   });
+
+  // Regression: aria-label fully overrides a button's accessible name, so the
+  // visible ✓/✗ feedback rendered as sibling text content is invisible to
+  // screen readers unless the label itself is updated. These two tests
+  // confirm the accessible name — not just the visible text — reflects the
+  // outcome after a tap.
+  it("appends a correct-outcome suffix to the aria-label once the matching crystal is tapped", () => {
+    render(<SortTrayTask skeleton={skeleton} fill={fill} onCorrect={vi.fn()} onWrong={vi.fn()} />);
+    const redCrystal = screen.getByLabelText("A red crystal.");
+    fireEvent.click(redCrystal);
+    expect(redCrystal).toHaveAttribute("aria-label", "A red crystal. — correct!");
+  });
+
+  it("appends a try-again suffix to the aria-label once a non-matching crystal is tapped", () => {
+    render(<SortTrayTask skeleton={skeleton} fill={fill} onCorrect={vi.fn()} onWrong={vi.fn()} />);
+    const blueCrystal = screen.getByLabelText("A blue crystal.");
+    fireEvent.click(blueCrystal);
+    expect(blueCrystal).toHaveAttribute("aria-label", "A blue crystal. — try again");
+  });
 });
