@@ -23,6 +23,7 @@ import { validateBody } from "../middleware/validate";
 import { getSupabaseServiceClient } from "../lib/supabase";
 import { requireChildSession } from "../lib/child-session";
 import { startMission, completeMission, MissionRuntimeError } from "../missions/mission-runtime";
+import { getMissionLesson, updateMissionTaskIndex } from "../missions/mission-lesson";
 
 const log = (level: string, msg: string, data?: object) =>
   console.log(
@@ -106,6 +107,70 @@ studentMissionRouter.post(
         error: "MISSION_COMPLETE_ERROR",
         message: "Mission completion could not be recorded. Please try again.",
       });
+    }
+  },
+);
+
+/** GET /api/student/mission/:missionId/lesson */
+studentMissionRouter.get(
+  "/:missionId/lesson",
+  async (req: Request, res: Response): Promise<void> => {
+    const { missionId } = req.params;
+    const missionAttemptId = req.query.missionAttemptId as string | undefined;
+    if (!missionAttemptId) {
+      res.status(400).json({ error: "MISSING_MISSION_ATTEMPT_ID", message: "missionAttemptId query param is required." });
+      return;
+    }
+
+    const supabase = serviceClientOr503(res);
+    if (!supabase) return;
+
+    const session = await requireChildSession(req, res, supabase);
+    if (!session) return;
+
+    try {
+      const result = await getMissionLesson(supabase, session, missionId, missionAttemptId);
+      res.status(200).json(result);
+    } catch (err) {
+      if (err instanceof MissionRuntimeError) {
+        res.status(err.status).json({ error: err.code, message: err.message });
+        return;
+      }
+      log("error", "GET /:missionId/lesson: unexpected error", {
+        childSessionId: session.id,
+        error: (err as Error).message,
+      });
+      res.status(500).json({ error: "LESSON_FETCH_ERROR", message: "Lesson could not be loaded. Please try again." });
+    }
+  },
+);
+
+const UpdateTaskIndexRequestSchema = z.object({
+  missionAttemptId: z.string().uuid(),
+  taskIndex: z.number().int().min(0),
+});
+
+/** POST /api/student/mission/task-index — persists resume position (exit flow) */
+studentMissionRouter.post(
+  "/task-index",
+  validateBody(UpdateTaskIndexRequestSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    const { missionAttemptId, taskIndex } = req.body as { missionAttemptId: string; taskIndex: number };
+    const supabase = serviceClientOr503(res);
+    if (!supabase) return;
+
+    const session = await requireChildSession(req, res, supabase);
+    if (!session) return;
+
+    try {
+      await updateMissionTaskIndex(supabase, session, missionAttemptId, taskIndex);
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      if (err instanceof MissionRuntimeError) {
+        res.status(err.status).json({ error: err.code, message: err.message });
+        return;
+      }
+      res.status(500).json({ error: "TASK_INDEX_UPDATE_ERROR", message: "Could not save your progress." });
     }
   },
 );
