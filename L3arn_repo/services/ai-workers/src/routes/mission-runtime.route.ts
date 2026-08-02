@@ -125,6 +125,8 @@ const EvidenceCaptureRequestSchema = z.object({
     "artifact-upload",
     "audio-response",
     "screenshot",
+    "discrimination-check",
+    "transfer-check",
   ]),
   contentJson: z.record(z.unknown()).optional().default({}),
 });
