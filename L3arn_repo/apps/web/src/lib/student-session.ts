@@ -284,6 +284,7 @@ async function authedGet<T>(path: string): Promise<ApiOutcome<T>> {
     const res = await fetch(`${base}${path}`, {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
     });
     if (!res.ok) {
       const { error, message } = await parseError(res);
