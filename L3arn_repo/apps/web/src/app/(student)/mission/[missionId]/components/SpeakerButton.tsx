@@ -12,14 +12,29 @@ interface SpeakerButtonProps {
  */
 export function SpeakerButton({ text }: SpeakerButtonProps) {
   function handleTap() {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    window.speechSynthesis.speak(utterance);
+    if (
+      typeof window === "undefined" ||
+      !window.speechSynthesis ||
+      !window.SpeechSynthesisUtterance
+    ) {
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(utterance);
+    } catch (error) {
+      // A known iOS Safari quirk: speak() called right after cancel() can
+      // silently drop the utterance. We can't recover the read-aloud here,
+      // but we must not let it throw uncaught — log for diagnostics and
+      // fail safe (no user-facing error UI; out of scope for this fix).
+      console.warn("SpeakerButton: speechSynthesis failed", error);
+    }
   }
 
   return (
-    <button aria-label="Read aloud" onClick={handleTap} style={speakerStyles.button}>
+    <button type="button" aria-label="Read aloud" onClick={handleTap} style={speakerStyles.button}>
       🔊
     </button>
   );
