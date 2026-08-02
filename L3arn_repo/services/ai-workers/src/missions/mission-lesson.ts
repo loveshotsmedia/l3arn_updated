@@ -20,6 +20,17 @@ import type { MissionLessonResponse } from "@l3arn/shared-types";
 import type { ChildSessionRow } from "../lib/child-session";
 import { MissionRuntimeError } from "./mission-runtime";
 
+const log = (level: string, msg: string, data?: object) =>
+  console.log(
+    JSON.stringify({
+      level,
+      system: "mission-lesson",
+      msg,
+      timestamp: new Date().toISOString(),
+      ...data,
+    }),
+  );
+
 /** No real calibration signal exists yet — see file header. */
 function resolveVariantKey() {
   return { learningStyle: "reading-writing" as const, readingTier: "grade-level" as const };
@@ -48,6 +59,11 @@ export async function getMissionLesson(
     .maybeSingle();
 
   if (error) {
+    log("error", "getMissionLesson: mission_attempts lookup failed", {
+      childSessionId: session.id,
+      missionAttemptId,
+      dbError: error.message,
+    });
     throw new MissionRuntimeError(503, "LESSON_LOOKUP_FAILED", "Could not verify mission attempt. Please try again.");
   }
   if (!attempt) {
@@ -73,13 +89,27 @@ export async function updateMissionTaskIndex(
   missionAttemptId: string,
   taskIndex: number,
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("mission_attempts")
     .update({ current_task_index: taskIndex })
     .eq("id", missionAttemptId)
-    .eq("child_profile_id", session.child_profile_id);
+    .eq("child_profile_id", session.child_profile_id)
+    .select("id");
 
   if (error) {
+    log("error", "updateMissionTaskIndex: mission_attempts update failed", {
+      childSessionId: session.id,
+      missionAttemptId,
+      dbError: error.message,
+    });
     throw new MissionRuntimeError(500, "TASK_INDEX_UPDATE_FAILED", "Could not save your progress. Please try again.");
+  }
+
+  if (!data || data.length === 0) {
+    log("error", "updateMissionTaskIndex: no mission_attempts row matched (not found or not owned)", {
+      childSessionId: session.id,
+      missionAttemptId,
+    });
+    throw new MissionRuntimeError(403, "ATTEMPT_NOT_OWNED", "This mission attempt does not belong to your session.");
   }
 }
