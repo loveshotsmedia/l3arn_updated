@@ -1,0 +1,23 @@
+# .github/workflows/asset-gate.yml
+name: 3D Asset Budget Gate
+
+on:
+  pull_request:
+    paths:
+      - 'packages/world-engine/public/models/**/*.glb'
+      - 'scripts/check-glb-budget.mjs'
+
+jobs:
+  check-budget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/check-glb-budget.mjs
