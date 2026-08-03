@@ -170,6 +170,12 @@ export default function MissionPage() {
   // fetched from GET .../lesson, and the child's current position in it.
   const [lessonTasks, setLessonTasks] = useState<MissionLessonTask[]>([]);
   const [taskIndex, setTaskIndex] = useState(0);
+  // Non-resumed path only: true once the background lesson fetch (kicked off
+  // right after the briefing renders) has failed. Lets "Begin the Mission"
+  // avoid handing the child a blank gameplay screen (lessonTasks would still
+  // be [] at that point) without yanking them out of the briefing the moment
+  // the failure happens in the background.
+  const [lessonFetchFailed, setLessonFetchFailed] = useState(false);
   const [isTransferStep, setIsTransferStep] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
 
@@ -209,7 +215,19 @@ export default function MissionPage() {
             if (resumed) {
               setErrorMessage(lessonOutcome.message);
               setPhase("error");
+              return;
             }
+            // Non-resumed: the child may still be reading the briefing
+            // screen (built entirely from the earlier startMission
+            // response, so it's unaffected by this failure) — don't yank
+            // them into the error screen mid-read. Stash the failure so
+            // "Begin the Mission" can guard against handing them a blank
+            // gameplay screen (lessonTasks is still [] here, and the
+            // gameplay-step render requires lessonTasks.length > 0) and
+            // route to the same error phase only if/when they actually
+            // try to proceed.
+            setErrorMessage(lessonOutcome.message);
+            setLessonFetchFailed(true);
             return;
           }
           setLessonTasks(lessonOutcome.data.tasks);
@@ -367,6 +385,10 @@ export default function MissionPage() {
   // ── Render: Briefing ──────────────────────────────────────────────────────────
   if (phase === "briefing") {
     if (!mission) return null;
+    // Neither failed nor populated yet == the background lesson fetch is
+    // still in flight. Missions always ship with at least one task, so a
+    // non-empty lessonTasks reliably means the fetch already succeeded.
+    const lessonPending = !lessonFetchFailed && lessonTasks.length === 0;
     return (
       <div style={styles.container}>
         <div style={styles.card}>
@@ -392,8 +414,26 @@ export default function MissionPage() {
             <span style={styles.rewardValue}>{mission.rewardPreviewLabel}</span>
           </div>
 
-          <button style={styles.beginBtn} onClick={() => setPhase("step")}>
-            Begin the Mission
+          <button
+            style={{
+              ...styles.beginBtn,
+              ...(lessonPending ? { opacity: 0.6, cursor: "wait" } : {}),
+            }}
+            disabled={lessonPending}
+            onClick={() => {
+              // The lesson fetch already failed in the background — proceeding
+              // would flip phase to "step" with lessonTasks still [], which
+              // fails the gameplay-step render guard and falls through to a
+              // blank screen. Route to the same error phase/message used
+              // elsewhere in this file instead.
+              if (lessonFetchFailed) {
+                setPhase("error");
+                return;
+              }
+              setPhase("step");
+            }}
+          >
+            {lessonPending ? "Preparing your mission…" : "Begin the Mission"}
           </button>
         </div>
       </div>
