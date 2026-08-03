@@ -1,4 +1,0 @@
-packages:
-  - "apps/web"
-  - "packages/shared-contracts"
-  - "packages/shared-clients"

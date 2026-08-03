@@ -1,0 +1,20 @@
+{
+  "name": "l3arn-platform",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @l3arn/web dev",
+    "build": "pnpm --filter @l3arn/web build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  },
+  "engines": {
+    "node": ">=22.13.0",
+    "pnpm": "11.7.0"
+  },
+  "devDependencies": {
+    "@gltf-transform/cli": "^4.4.0",
+    "@gltf-transform/core": "^4.4.0",
+    "vitest": "^2.1.9"
+  }
+}
