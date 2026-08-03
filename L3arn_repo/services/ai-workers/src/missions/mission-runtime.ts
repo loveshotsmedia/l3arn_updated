@@ -1,7 +1,10 @@
 /**
  * Mission runtime — start + complete (Hero Slice Phase B).
  *
- * startMission:   authenticate session → compile Mission 001 (Zod-validated;
+ * startMission:   authenticate session → resume an existing in-progress
+ *                 (status='started') mission_attempts row for this child+mission
+ *                 if one exists (no recompile, no new row — see the resume-check
+ *                 block below) → otherwise compile Mission 001 (Zod-validated;
  *                 static fallback on AI failure, so no unvalidated AI output ever
  *                 reaches the child) → create a mission_attempts row → return a
  *                 compact student-facing mission view.
@@ -64,6 +67,68 @@ export async function startMission(
   session: ChildSessionRow,
   missionId: string,
 ): Promise<StartMissionResponse> {
+  // ── Resume check ─────────────────────────────────────────────────────────
+  // Before compiling anything, check whether this child already has an
+  // in-progress (status = 'started') attempt for this exact mission. Without
+  // this, every call — including a child simply re-entering a mission they
+  // exited mid-way through — created a brand-new attempt row with
+  // current_task_index defaulting to 0, silently discarding saved progress
+  // even though GET .../lesson correctly reads resumeFromTaskIndex off the
+  // attempt row and POST .../task-index correctly persists it. 'completed'
+  // and 'abandoned' attempts are intentionally excluded — only 'started' is
+  // resumable.
+  //
+  // Concurrency note: this is a check-then-insert, not a transactional claim
+  // (mission_attempts has no unique constraint on (child_profile_id,
+  // mission_id) while status='started' to upsert against, unlike the
+  // house_memberships precedent this mirrors — see POST /calibration-signals
+  // in student-session.route.ts, which also checks-then-writes but has a real
+  // unique column to fall back on). A double-click race could in theory still
+  // create two 'started' rows; the next resume picks the most recent one via
+  // started_at DESC, so the failure mode is a wasted extra row + AI compile
+  // call, not lost progress or a crash. Closing that race for good would need
+  // a partial unique index (e.g. ON mission_attempts (child_profile_id,
+  // mission_id) WHERE status = 'started') — out of scope here since it's a
+  // schema change.
+  const { data: existingAttempt, error: existingAttemptError } = await supabase
+    .from("mission_attempts")
+    .select("id, content_source")
+    .eq("child_profile_id", session.child_profile_id)
+    .eq("mission_id", missionId)
+    .eq("status", "started")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingAttemptError) {
+    log("warn", "startMission: resume lookup failed, proceeding to start a new attempt", {
+      childProfileId: session.child_profile_id,
+      missionId,
+      dbError: existingAttemptError.message,
+    });
+  }
+
+  if (existingAttempt) {
+    const attemptId = (existingAttempt as { id: string }).id;
+    log("info", "startMission: resuming existing in-progress attempt (no AI recompile)", {
+      missionAttemptId: attemptId,
+      missionId,
+    });
+    return {
+      missionAttemptId: attemptId,
+      missionId,
+      contentSource:
+        (existingAttempt as { content_source?: "ai" | "fallback" | null }).content_source ?? "fallback",
+      // Placeholder briefing content — the original is not retrievable (see
+      // resumed field doc comment on StartMissionResponseSchema). The client
+      // skips the briefing screen on resumed=true, so these are never shown.
+      storyHook: "Welcome back! Let's pick up right where you left off.",
+      tasks: [],
+      rewardPreviewLabel: "Finish your mission to earn your rewards!",
+      resumed: true,
+    };
+  }
+
   // Identity + grade + companion drive the compiler's personalization input.
   const { data: identity } = await supabase
     .from("academy_identities")
@@ -161,6 +226,7 @@ export async function startMission(
       interactionType: t.interactionType,
     })),
     rewardPreviewLabel: m.rewardPreviewLabel,
+    resumed: false,
   };
 }
 

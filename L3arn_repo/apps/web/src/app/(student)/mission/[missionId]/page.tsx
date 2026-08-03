@@ -188,11 +188,19 @@ export default function MissionPage() {
       if (cancelled) return;
       if (outcome.ok) {
         setMission(outcome.data);
-        setPhase("briefing");
+        // Resuming an existing in-progress attempt: the original briefing
+        // content isn't retrievable (only a UUID envelope reference is
+        // persisted), so the backend returns generic placeholders and we
+        // skip straight to gameplay instead of showing a bogus briefing.
+        // Stay on "loading" until the lesson fetch below resolves so we can
+        // jump straight to "step" with lessonTasks already populated.
+        const resumed = outcome.data.resumed === true;
+        if (!resumed) setPhase("briefing");
         void fetchMissionLesson(missionId, outcome.data.missionAttemptId).then((lessonOutcome) => {
           if (cancelled || !lessonOutcome.ok) return;
           setLessonTasks(lessonOutcome.data.tasks);
           setTaskIndex(lessonOutcome.data.resumeFromTaskIndex);
+          if (resumed) setPhase("step");
         });
         return;
       }

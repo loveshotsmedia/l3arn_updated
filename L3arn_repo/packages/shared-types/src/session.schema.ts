@@ -205,6 +205,17 @@ export const StartMissionResponseSchema = z.object({
   storyHook: z.string(),
   tasks: z.array(StudentMissionTaskSchema),
   rewardPreviewLabel: z.string(),
+  /**
+   * True when this call resumed an existing, not-yet-completed mission_attempts
+   * row (same child + mission, status 'started') instead of compiling a fresh
+   * one. The original AI-generated briefing content is not persisted anywhere
+   * (only an opaque ai_output_envelope_id UUID is stored on the row), so on
+   * resume storyHook/tasks/rewardPreviewLabel are generic placeholders — the
+   * client is expected to skip the briefing screen entirely when resumed=true
+   * and go straight back into gameplay at the task index already saved via
+   * GET .../lesson's resumeFromTaskIndex.
+   */
+  resumed: z.boolean().default(false),
 });
 
 export type StartMissionResponse = z.infer<typeof StartMissionResponseSchema>;
