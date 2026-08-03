@@ -197,7 +197,21 @@ export default function MissionPage() {
         const resumed = outcome.data.resumed === true;
         if (!resumed) setPhase("briefing");
         void fetchMissionLesson(missionId, outcome.data.missionAttemptId).then((lessonOutcome) => {
-          if (cancelled || !lessonOutcome.ok) return;
+          if (cancelled) return;
+          if (!lessonOutcome.ok) {
+            // On the resumed path, phase is still "loading" at this point
+            // (we deliberately didn't set it to "briefing" above) — if we
+            // silently returned here like the non-resumed path does, the
+            // child would be stuck on "Preparing your mission…" forever
+            // with no retry route. The non-resumed path doesn't have this
+            // problem because phase was already set to "briefing"
+            // synchronously before this fetch was kicked off.
+            if (resumed) {
+              setErrorMessage(lessonOutcome.message);
+              setPhase("error");
+            }
+            return;
+          }
           setLessonTasks(lessonOutcome.data.tasks);
           setTaskIndex(lessonOutcome.data.resumeFromTaskIndex);
           if (resumed) setPhase("step");

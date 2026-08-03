@@ -100,6 +100,17 @@ export async function startMission(
     .limit(1)
     .maybeSingle();
 
+  // Unlike every other Supabase call in this file (the insert below, the
+  // completion-claim update, evidence insert, moolah insert), a failure here
+  // intentionally fails OPEN instead of throwing MissionRuntimeError. Those
+  // other calls gate a critical state transition where throwing is the
+  // correct guarantee; this one only decides whether to resume an existing
+  // attempt or start a new one. Throwing here would block the child from
+  // starting the mission at all over a transient lookup failure. Falling
+  // through to the identity/compile/insert path below instead means the
+  // worst case is a wasted extra attempt row + AI compile call (same
+  // failure mode as the check-then-insert race noted above) — the child can
+  // still play, which is the guarantee that matters for this lookup.
   if (existingAttemptError) {
     log("warn", "startMission: resume lookup failed, proceeding to start a new attempt", {
       childProfileId: session.child_profile_id,
