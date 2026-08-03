@@ -12,8 +12,37 @@ interface SortTrayTaskProps {
   isTransferStep?: boolean;
 }
 
-const COLOR_HEX: Record<string, string> = { red: "#ef4444", blue: "#3b82f6", green: "#22c55e", purple: "#a855f7" };
-const COLOR_EMOJI: Record<string, string> = { red: "🔴", blue: "🔵", green: "🟢", purple: "🟣" };
+// Explicit entries must cover every color literal actually used across the
+// real fixtures served via MISSION_001_LESSON_SEQUENCE (see
+// packages/mission-compiler/src/curriculum/mission-001-lesson-sequence.ts):
+// sort-color-crystals.skeleton.ts uses red/blue/green, and
+// apply-to-new-color.skeleton.ts uses purple (correctItem) plus orange
+// (transferItem — deliberately a genuinely novel color not seen in the
+// teaching rounds, see that file's own header comment). "orange" was missing
+// here previously, which produced literal "undefined" in the background/
+// borderColor style strings and a blank emoji for that fixture's transfer
+// step (confirmed via verification-screenshots/10-apply-to-new-transfer-step4.png).
+// A generic FALLBACK_* pair also guards any future color a not-yet-built
+// content-generation pipeline might author that isn't enumerated below.
+// Exported (not just module-local) so SortTrayTask.test.tsx can assert
+// coverage directly against these maps — see that file's "color coverage"
+// test for the enforcement half of this contract.
+export const FALLBACK_COLOR_HEX = "#94a3b8";
+export const FALLBACK_COLOR_EMOJI = "⬤";
+export const COLOR_HEX: Record<string, string> = {
+  red: "#ef4444",
+  blue: "#3b82f6",
+  green: "#22c55e",
+  purple: "#a855f7",
+  orange: "#f97316",
+};
+export const COLOR_EMOJI: Record<string, string> = {
+  red: "🔴",
+  blue: "🔵",
+  green: "🟢",
+  purple: "🟣",
+  orange: "🟠",
+};
 
 /**
  * Real color-sort discrimination — tap-then-select (not drag: dragging is
@@ -72,6 +101,8 @@ export function SortTrayTask({ skeleton, fill, onCorrect, onWrong, isTransferSte
           const colorLabel = color.charAt(0).toUpperCase() + color.slice(1);
           const isSelected = selectedId === item.itemId;
           const isCorrect = item.itemId === targetItem.itemId;
+          const colorHex = COLOR_HEX[color] ?? FALLBACK_COLOR_HEX;
+          const colorEmoji = COLOR_EMOJI[color] ?? FALLBACK_COLOR_EMOJI;
           // aria-label fully overrides a button's accessible name, so the
           // visible ✓/✗ feedback below (rendered as sibling text content)
           // would otherwise never reach screen reader users once this prop
@@ -87,14 +118,14 @@ export function SortTrayTask({ skeleton, fill, onCorrect, onWrong, isTransferSte
               disabled={resolved}
               style={{
                 ...sortTrayStyles.crystalBtn,
-                background: `${COLOR_HEX[color]}26`,
-                borderColor: isSelected ? (isCorrect ? "#22c55e" : "#ef4444") : COLOR_HEX[color],
+                background: `${colorHex}26`,
+                borderColor: isSelected ? (isCorrect ? "#22c55e" : "#ef4444") : colorHex,
                 cursor: resolved ? "default" : "pointer",
                 transform: isSelected && isCorrect ? "scale(1.08)" : "scale(1)",
                 transition: "transform 0.25s ease",
               }}
             >
-              <span style={sortTrayStyles.crystalEmoji}>{COLOR_EMOJI[color]}</span>
+              <span style={sortTrayStyles.crystalEmoji}>{colorEmoji}</span>
               <span style={sortTrayStyles.crystalLabel}>{colorLabel}</span>
               {isSelected && <span>{isCorrect ? " ✓" : " ✗"}</span>}
             </button>
