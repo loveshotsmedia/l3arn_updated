@@ -72,36 +72,40 @@ export const AI_MISTAKE_SHAPE_SIDES_FILL: SkeletonFill = {
     readingTier: "grade-level",
     l3arnMasteryLevel: "emerging",
   },
-  storyFlavor: "The Sorting Computer studied a glowing crystal and reported its findings to you.",
+  // Each option's presentationText states ONLY the companion's claim, never
+  // the verdict ("that's correct" / "that's a mistake") — the child must
+  // count the rendered shape's real sides themselves and compare it to the
+  // claim. An earlier version of this copy stated the verdict outright in
+  // the text, which meant there was nothing to actually figure out; found
+  // live during manual testing. The gate's correctAnswerRule/distractorRule
+  // still key off the same claimedSides/actualSides attributes, unchanged.
+  storyFlavor:
+    "The Sorting Computer studied a glowing crystal and reported its findings to you. Count the crystal's sides yourself — is the companion right?",
   correctItem: {
     itemId: "critique-correct",
     attributes: { claimedSides: 5, actualSides: 6 },
-    presentationText:
-      'The companion said: "This crystal has 5 sides." But count them yourself — it actually has 6. The companion made a mistake!',
-    readAloudScript:
-      "The companion said this crystal has 5 sides. But if you count them yourself, it actually has 6. The companion made a mistake!",
+    presentationText: 'The companion said: "This crystal has 5 sides."',
+    readAloudScript: "The companion said this crystal has 5 sides.",
   },
   distractorItems: [
     {
       itemId: "critique-distractor-a",
       attributes: { claimedSides: 6, actualSides: 6 },
-      presentationText: 'The companion said: "This crystal has 6 sides," and it does have 6 sides. That\'s correct, not a mistake.',
-      readAloudScript: "The companion said this crystal has 6 sides, and it does have 6 sides. That is correct, not a mistake.",
+      presentationText: 'The companion said: "This crystal has 6 sides."',
+      readAloudScript: "The companion said this crystal has 6 sides.",
     },
     {
       itemId: "critique-distractor-b",
       attributes: { claimedSides: 4, actualSides: 4 },
-      presentationText: 'The companion said: "This crystal has 4 sides," and it does have 4 sides. That\'s correct, not a mistake.',
-      readAloudScript: "The companion said this crystal has 4 sides, and it does have 4 sides. That is correct, not a mistake.",
+      presentationText: 'The companion said: "This crystal has 4 sides."',
+      readAloudScript: "The companion said this crystal has 4 sides.",
     },
   ],
   transferItem: {
     itemId: "critique-transfer",
     attributes: { claimedSides: 3, actualSides: 5 },
-    presentationText:
-      'Now look at this NEW crystal. The companion said: "This one has 3 sides." Count the real crystal — is the companion right this time?',
-    readAloudScript:
-      "Now look at this new crystal. The companion said this one has 3 sides. Count the real crystal. Is the companion right this time?",
+    presentationText: 'Now look at this NEW crystal. The companion said: "This one has 3 sides."',
+    readAloudScript: "Now look at this new crystal. The companion said this one has 3 sides.",
   },
   hintLadderFill: AI_MISTAKE_SHAPE_SIDES_SKELETON.hintLadder,
   companionDialogueLine: "Wait... let's double check my math on that last one!",

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { LessonTaskSkeleton, SkeletonFill } from "@l3arn/shared-types";
 import { sortByHash } from "./deterministic-order";
+import { PolygonShape } from "./PolygonShape";
 
 interface OptionListTaskProps {
   skeleton: LessonTaskSkeleton;
@@ -62,6 +63,10 @@ export function OptionListTask({ skeleton, fill, onCorrect, onWrong, isTransferS
           const isCorrectAnswer = opt.itemId === correctItemId;
           const showCorrect = isSelected && isCorrectAnswer;
           const showWrong = isSelected && !isCorrectAnswer;
+          // ai-mistake-check items carry a real actualSides count so the
+          // child can verify a claim by counting, instead of the caption
+          // just telling them the verdict outright.
+          const actualSides = opt.attributes.actualSides;
           return (
             <button
               key={opt.itemId}
@@ -74,9 +79,14 @@ export function OptionListTask({ skeleton, fill, onCorrect, onWrong, isTransferS
               onClick={() => handleSelect(opt.itemId)}
               disabled={resolved}
             >
-              {opt.presentationText}
-              {showCorrect && <span style={optionListStyles.checkIcon}> ✓</span>}
-              {showWrong && <span style={optionListStyles.xIcon}> ✗</span>}
+              <span style={optionListStyles.optionRow}>
+                {typeof actualSides === "number" && <PolygonShape sides={actualSides} />}
+                <span>
+                  {opt.presentationText}
+                  {showCorrect && <span style={optionListStyles.checkIcon}> ✓</span>}
+                  {showWrong && <span style={optionListStyles.xIcon}> ✗</span>}
+                </span>
+              </span>
             </button>
           );
         })}
@@ -102,6 +112,7 @@ const optionListStyles: Record<string, React.CSSProperties> = {
     transition: "all 0.2s ease",
     lineHeight: 1.5,
   },
+  optionRow: { display: "flex", alignItems: "center", gap: "1rem" },
   checkIcon: { color: "#4ade80", fontWeight: 700 },
   xIcon: { color: "#f87171", fontWeight: 700 },
 };

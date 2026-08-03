@@ -52,6 +52,21 @@ describe("AI_MISTAKE_SHAPE_SIDES_SKELETON (worked example)", () => {
     expect(result.failures.map((f) => f.code)).toContain("correct-item-fails-rule");
   });
 
+  it("never states the verdict in an option's own text — the child must count the shape to find out (regression: earlier copy said 'that's correct, not a mistake' / 'the companion made a mistake!' outright, making the task answerable without counting anything)", () => {
+    const allItems = [
+      AI_MISTAKE_SHAPE_SIDES_FILL.correctItem,
+      ...AI_MISTAKE_SHAPE_SIDES_FILL.distractorItems,
+      AI_MISTAKE_SHAPE_SIDES_FILL.transferItem,
+    ];
+    const giveawayPhrases = ["mistake", "correct, not", "that's correct", "the companion made"];
+    for (const item of allItems) {
+      const lowerText = item.presentationText.toLowerCase();
+      for (const phrase of giveawayPhrases) {
+        expect(lowerText).not.toContain(phrase);
+      }
+    }
+  });
+
   it("fails the gate when a distractor critique actually does describe a real AI mistake", () => {
     const badFill = makeValidFill({
       distractorItems: [

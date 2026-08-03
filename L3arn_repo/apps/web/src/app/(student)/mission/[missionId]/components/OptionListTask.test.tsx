@@ -100,4 +100,26 @@ describe("OptionListTask", () => {
     expect(screen.getByText("A new correct option.")).toBeInTheDocument();
     expect(screen.queryByText("The correct option.")).not.toBeInTheDocument();
   });
+
+  it("renders a countable shape for options carrying a numeric actualSides attribute (ai-mistake-check)", () => {
+    const shapeFill: SkeletonFill = {
+      ...fill,
+      correctItem: { itemId: "critique-correct", attributes: { claimedSides: 5, actualSides: 6 }, presentationText: 'The companion said: "5 sides."', readAloudScript: "5 sides." },
+      distractorItems: [
+        { itemId: "critique-distractor-a", attributes: { claimedSides: 6, actualSides: 6 }, presentationText: 'The companion said: "6 sides."', readAloudScript: "6 sides." },
+        { itemId: "critique-distractor-b", attributes: { claimedSides: 4, actualSides: 4 }, presentationText: 'The companion said: "4 sides."', readAloudScript: "4 sides." },
+      ],
+    };
+    render(<OptionListTask skeleton={skeleton} fill={shapeFill} onCorrect={vi.fn()} onWrong={vi.fn()} />);
+    // One shape per option, each labeled with its real (actualSides) count —
+    // not the claimedSides count, since the shape must reflect ground truth
+    // for the child to check the claim against, not just repeat it.
+    expect(screen.getAllByLabelText("A shape with 6 sides")).toHaveLength(2); // correct (6) + distractor-a (6)
+    expect(screen.getByLabelText("A shape with 4 sides")).toBeInTheDocument();
+  });
+
+  it("renders no shape for options without a numeric actualSides attribute (choice/apply-to-new)", () => {
+    render(<OptionListTask skeleton={skeleton} fill={fill} onCorrect={vi.fn()} onWrong={vi.fn()} />);
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
 });
