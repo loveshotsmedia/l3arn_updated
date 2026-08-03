@@ -50,7 +50,17 @@ export const APPLY_TO_NEW_COLOR_FILL: SkeletonFill = {
     readingTier: "grade-level",
     l3arnMasteryLevel: "emerging",
   },
-  storyFlavor: "A brand-new crystal appeared. The Purple Bin needs a crystal — which one belongs?",
+  // NOTE: page.tsx currently renders this task type with isTransferStep
+  // hardcoded true (never false), so correctItem/distractorItems below are
+  // never actually shown to a child today — only transferItem is. storyFlavor
+  // must therefore stand on its own for the transfer-only presentation; it
+  // must NOT reference "the Purple Bin" (or any teaching-round detail a child
+  // never sees), which an earlier version of this copy did. Found live: the
+  // fixture's own comment above still describes a two-phase teaching+transfer
+  // flow that the current wiring doesn't actually deliver — see the follow-up
+  // register for the larger design question of whether this task type should
+  // present real distractors instead of a single always-correct tap.
+  storyFlavor: "A brand-new crystal appeared! Does the color-matching rule you just learned still work — even for a color you've never seen before?",
   correctItem: {
     itemId: "crystal-purple",
     attributes: { color: "purple", isTargetMatch: true },
