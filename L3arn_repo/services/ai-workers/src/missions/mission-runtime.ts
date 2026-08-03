@@ -221,9 +221,15 @@ export async function startMission(
   const contentSource: "ai" | "fallback" = output.usedFallback ? "fallback" : "ai";
 
   // staleAttemptId set above: reuse the existing index-0 'started' row in
-  // place (no gameplay happened against it, so nothing else references its
-  // id yet) instead of inserting a second 'started' row for the same
-  // child+mission.
+  // place instead of inserting a second 'started' row for the same
+  // child+mission. Note this row's id CAN already be referenced by a
+  // decision-log evidence event (page.tsx captures one on task entry, before
+  // current_task_index ever advances) — that row's content_json.taskInstanceId
+  // will no longer match this attempt's refreshed content_source/envelope
+  // after this update. Harmless today (no current consumer joins evidence
+  // back to a specific compiled task via the envelope), but worth knowing
+  // before building any feature that resolves evidence content against a
+  // mission attempt's compiled output.
   const attemptRowFields = {
     child_profile_id: session.child_profile_id,
     child_session_id: session.id,
