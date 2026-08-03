@@ -232,3 +232,148 @@ guess at a fix.
   `mission_attempts`/AI-compile calls throughout this session; production
   builds don't double-invoke, but this was not independently confirmed in
   a production build during this pass.
+
+---
+
+## RE-VERIFICATION (2026-08-03) — Exit/Resume Fix (commits `7b07071`, `caca529`): CONFIRMED FIXED
+
+**Method:** Same real environment (live browser, real local `ai-workers` +
+`apps/web` dev servers, real Supabase project, real test account). Child used:
+**QuasarKid3** (`5e1222e9-b4b9-47e4-bf38-53b5ab4df6fc`) — the one child not left
+mid-mission by the original Aug 2 verification pass (StarBlazer7 had a
+`completed` attempt; NovaPilot9 was left exited-mid-mission at index 1, the
+exact bug this fix addresses).
+
+**Environment note (unrelated to the fix, resolved during this pass):** both
+dev servers, still running from the earlier session, had gone stale — Next.js
+had a crashed webpack compile worker (`Jest worker encountered 2 child process
+exceptions, exceeding retry limit`, 500 on `/student/mission/mission-001`) and
+`ai-workers`' `POST /start` hung indefinitely despite `/health` responding
+normally. Both were killed and restarted cleanly (`npx next dev -p 3000`;
+`cd services/ai-workers && set -a && source .env && set +a && npx ts-node
+src/index.ts`), after which both routes worked normally. Not a code defect —
+noted here only so a future session isn't surprised by it.
+
+**Baseline surprise (itself evidence the fix works, not a test artifact):**
+QuasarKid3 already had one stale `started` mission_attempts row
+(`5c93051b-7eca-4ccd-8d7b-df4adea203f1`, `current_task_index: 0`) from
+2026-07-04 — unrelated pre-existing test debris, over a month old. On the very
+first navigation to `/student/mission/mission-001` this session, the fixed
+`startMission` found it and resumed it directly (no briefing, placeholder
+`storyHook: "Welcome back! Let's pick up right where you left off."`,
+`resumed: true`, `contentSource: "fallback"`) rather than creating a fresh
+attempt. Server log: `startMission: resuming existing in-progress attempt (no
+AI recompile)` with `missionAttemptId: 5c93051b-...`. This confirms the lookup
+genuinely queries `(child_profile_id, mission_id, status='started')` with no
+staleness cutoff — a real, if minor, product question for later (should a
+month-old abandoned attempt auto-resume?), but exactly the mechanism the fix
+commit describes.
+
+**Test proceeded on this attempt** (a legitimate substrate — same mechanism,
+just pre-existing rather than freshly created):
+
+1. Answered Step 1 (Red Bin, correct) → Step 2 (Blue Bin, correct) → Step 3
+   (Green Bin) — i.e., completed 2 full sort rounds before exiting.
+2. Tapped **Exit mission** on Step 3 of 6 (`taskIndex: 2`). Exit-confirmation
+   dialog appeared ("Leave this mission? Your progress on this task is
+   saved." / Leave / Stay). Screenshot:
+   `verification-screenshots/resume-04-exit-confirmation-dialog.png`.
+3. Tapped **Leave**. Network confirmed `POST /api/student/mission/task-index`
+   fired with `{"missionAttemptId":"5c93051b-...","taskIndex":2}` → `200 OK`.
+4. **DB check immediately after exit** (Supabase REST,
+   `mission_attempts?id=eq.5c93051b-...`):
+   ```
+   {"id":"5c93051b-7eca-4ccd-8d7b-df4adea203f1","status":"started",
+    "current_task_index":2,"mission_id":"mission-001",
+    "started_at":"2026-07-04T12:05:10.131+00:00","completed_at":null}
+   ```
+   Confirms save-on-exit: correct index, still `started` (not `completed`).
+5. Re-entered via direct navigation to `/student/mission/mission-001` (same
+   child, same session) — **THE KEY CHECK**: dropped directly into
+   **"Step 3 of 6" (Green Bin)** with no briefing screen. Screenshot:
+   `verification-screenshots/resume-05-KEY-resumed-at-step3.png`.
+   - `POST /start` response: `{"missionAttemptId":"5c93051b-...",
+     "resumed":true, "storyHook":"Welcome back! Let's pick up right where you
+     left off.", ...}` — **same attempt ID as before exit.**
+   - `GET /lesson?missionAttemptId=5c93051b-...` response:
+     `"resumeFromTaskIndex":2` — matches exactly where it was left.
+   - **DB check**: same two rows as before (`752bbe83-...` completed from
+     July 4, `5c93051b-...` still `started`, now `current_task_index:2`) — no
+     third/new row was created. Server log confirms the resume path fired
+     again on re-entry: `startMission: resuming existing in-progress attempt
+     (no AI recompile)`, `missionAttemptId: 5c93051b-...`.
+   - Bonus finding: both the pre-exit entry and the post-exit re-entry each
+     logged this resume message **twice** (React StrictMode double-invoke, as
+     the fix's own commit message anticipated) — and in both cases both
+     invocations resolved to the *same* attempt ID with no duplicate row
+     created. The documented "check-then-insert race" residual risk did not
+     manifest here (this was a lookup-then-return path with no insert at all
+     when an attempt already exists, so double-invoke is inherently safe on
+     this path — the race the commit message flags only applies to the
+     create-new-attempt branch, which this test didn't exercise).
+6. Completed the rest of the mission from the resumed point: Step 4
+   (apply-to-new transfer, orange crystal) → Step 5 (ai-mistake-check,
+   correctly identified the companion's error) → Step 6 (reflection,
+   "Humans should check AI output") → **Mission Complete**. Screenshot:
+   `verification-screenshots/resume-06-mission-complete-rewards.png`.
+   Rewards: `+25 Moolah, +75 XP, +15 House Points, +20 Companion Bond`,
+   badges `mission-001-complete`, `ai-literacy-1`.
+7. **Final DB state**:
+   ```
+   {"id":"5c93051b-...","status":"completed","current_task_index":5,
+    "completed_at":"2026-08-03T00:47:10.268+00:00"}
+   ```
+   Same attempt ID throughout the entire exit→resume→complete cycle — it was
+   never abandoned or replaced.
+8. Server log confirmed the full completion pipeline ran for real:
+   `completeMission: pipeline complete`, `missionAttemptId: 5c93051b-...`,
+   `evidenceCount:7`, `masteryRecordsWritten:5`, `reportId:0e6d8410-...`, plus
+   `calibration snapshot persisted — confidenceScore:0.75`.
+9. **Moolah cross-check** (DB + parent dashboard UI, not just component
+   state): `moolah_wallets` for QuasarKid3 went from `balance: 25` (pre-test,
+   shown on dashboard before Start Session) to `balance: 50, lifetime_earned:
+   50` (matches the `+25` reward). Parent dashboard, reloaded after
+   completion, shows QuasarKid3 at `🪙 50 Moolah`.
+
+### Result: exit/resume is FIXED
+
+The exact failure mode from the original report — re-entering after exit
+creating a brand-new `mission_attempts` row at `current_task_index: 0`,
+orphaning saved progress — did not reproduce. Every check (network response
+body, `/lesson` `resumeFromTaskIndex`, direct DB row count and field values,
+server logs) agrees: one attempt ID, correct resumed index, no duplicate row,
+full completion pipeline unaffected downstream.
+
+### Screenshots (this re-verification pass)
+
+- `resume-01-academy-quasarkid3.png` — academy scene before entering mission
+- `resume-02-step2-blue-bin.png` — Step 2, mid-playthrough
+- `resume-03-pre-exit-step3.png` — Step 3, immediately before tapping Exit
+- `resume-04-exit-confirmation-dialog.png` — exit confirmation dialog
+- `resume-05-KEY-resumed-at-step3.png` — **the key screenshot**: re-entry
+  landing directly on Step 3 (same task, no briefing, same attempt ID)
+- `resume-06-mission-complete-rewards.png` — completion screen after
+  finishing the resumed attempt
+
+### Self-review (this pass)
+
+- Every claim above is backed by either a direct Supabase REST query result,
+  a captured network request/response body, or a server log line quoted
+  verbatim — not UI observation alone, matching the rigor of the original
+  bug report that found this broken.
+- The dev-server staleness (crashed Next.js worker, hung `ai-workers` `/start`
+  call) was diagnosed and fixed by process restart before concluding
+  anything about the app; it would have been easy to misattribute a hang to
+  the resume fix itself, so this is called out explicitly to avoid that
+  reading by a future reviewer.
+- Using a pre-existing month-old orphaned attempt as the test substrate
+  (rather than a freshly-created one) was a deliberate choice once
+  discovered, not a shortcut — it's a strictly stronger test of the lookup
+  query than a same-session fresh attempt would have been, and it surfaced
+  the (already-known, already-documented) lack of a staleness cutoff as a
+  real behavior worth a product decision later, not a defect in this fix.
+- No new problems found. The StrictMode double-invoke behavior was checked
+  specifically against the "residual risk" the fix's commit message called
+  out, and did not manifest as a duplicate row in this test — consistent
+  with the commit's own reasoning (no insert happens on the resume path, only
+  on the create-new-attempt path).
