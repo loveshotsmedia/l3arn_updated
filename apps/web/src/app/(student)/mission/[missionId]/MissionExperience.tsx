@@ -152,6 +152,47 @@ function CompanionDialogue({ text }: { text: string }) {
   );
 }
 
+// ── Crystal & bin glyphs (instructionally relevant visuals — Mayer-compliant,
+//    static, calm; this surface is Mission mode, spec §4) ──────────────────────
+
+/** A gem crystal sitting in a bin — THE visual for "which crystal is in which bin". */
+function CrystalInBin({ crystal, bin, size = 46 }: { crystal: string; bin: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 44 44" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <path d="M8 20l4 18h20l4-18" stroke={bin} strokeWidth="2.4" fill={`${bin}26`} strokeLinejoin="round" />
+      <path d="M22 4l8 10-8 10-8-10z" fill={crystal} stroke="rgba(15,23,42,0.55)" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M18 9.5h8M22 4v20" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
+    </svg>
+  );
+}
+
+/** A standalone gem crystal (used for the sorting rows). */
+function Gem({ hex, glow, size = 54 }: { hex: string; glow: string; size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 40 40"
+      fill="none"
+      aria-hidden="true"
+      style={{ filter: `drop-shadow(0 0 8px ${glow})` }}
+    >
+      <path d="M20 3l11 13-11 21L9 16z" fill={hex} stroke="rgba(15,23,42,0.5)" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M9 16h22M20 3L14 16l6 21M20 3l6 13-6 21" stroke="rgba(255,255,255,0.3)" strokeWidth="1" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** An open bin (used inside the sort button). */
+function BinGlyph({ hex, size = 30 }: { hex: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 30 30" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <path d="M4 8l3.5 18h15L26 8" stroke={hex} strokeWidth="2.2" fill={`${hex}26`} strokeLinejoin="round" />
+      <path d="M2.5 8h25" stroke={hex} strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 // ── Crystal Sorting Step (steps 0, 1, 2) ─────────────────────────────────────
 
 const CRYSTAL_STEPS = [
@@ -190,12 +231,12 @@ function CrystalSortStep({ stepDef, missionAttemptId, onComplete }: CrystalSortS
           <span
             key={i}
             style={{
-              ...styles.crystalEmoji,
               opacity: sorted ? 0.3 : 1,
               transition: "opacity 0.4s ease",
+              display: "flex",
             }}
           >
-            {stepDef.emoji}
+            <Gem hex={stepDef.hex} glow={stepDef.glow} />
           </span>
         ))}
       </div>
@@ -213,7 +254,8 @@ function CrystalSortStep({ stepDef, missionAttemptId, onComplete }: CrystalSortS
         onClick={handleSort}
         disabled={sorted}
       >
-        {sorted ? `✓ ${stepDef.color} crystals sorted!` : `${stepDef.color} Bin — click to sort`}
+        <BinGlyph hex={stepDef.hex} />
+        <span>{sorted ? `✓ ${stepDef.color} crystals sorted!` : `${stepDef.color} Bin — click to sort`}</span>
       </button>
     </div>
   );
@@ -222,10 +264,10 @@ function CrystalSortStep({ stepDef, missionAttemptId, onComplete }: CrystalSortS
 // ── AI Mistake Check Step (step 3) ────────────────────────────────────────────
 
 const AI_MISTAKE_OPTIONS = [
-  { label: "A red crystal in the blue bin", correct: true },
-  { label: "A blue crystal in the blue bin", correct: false },
-  { label: "A green crystal in the green bin", correct: false },
-  { label: "A purple crystal in the purple bin", correct: false },
+  { label: "A red crystal in the blue bin", correct: true, crystal: "#ef4444", bin: "#3b82f6" },
+  { label: "A blue crystal in the blue bin", correct: false, crystal: "#3b82f6", bin: "#3b82f6" },
+  { label: "A green crystal in the green bin", correct: false, crystal: "#22c55e", bin: "#22c55e" },
+  { label: "A purple crystal in the purple bin", correct: false, crystal: "#a855f7", bin: "#a855f7" },
 ];
 
 interface AIMistakeStepProps {
@@ -300,8 +342,9 @@ function AIMistakeStep({ missionAttemptId, onComplete, onHintUsed }: AIMistakeSt
               onClick={() => handleChoice(idx)}
               disabled={correct}
             >
-              <span style={styles.optionLetter}>{String.fromCharCode(65 + idx)})</span>{" "}
-              {opt.label}
+              <span style={styles.optionLetter}>{String.fromCharCode(65 + idx)})</span>
+              <CrystalInBin crystal={opt.crystal} bin={opt.bin} />
+              <span style={{ flex: 1 }}>{opt.label}</span>
               {showCorrect && <span style={styles.optionCheck}> ✓</span>}
               {showWrong && <span style={styles.optionX}> ✗</span>}
             </button>
@@ -360,6 +403,12 @@ function ExplainRuleStep({ missionAttemptId, onComplete, onHintUsed }: ExplainRu
       <p style={styles.narrative}>You sorted all three bins perfectly! Now tell me how you did it.</p>
 
       <CompanionDialogue text={companionLine} />
+
+      <div style={styles.evidenceRow} aria-label="The bins you sorted">
+        <CrystalInBin crystal="#ef4444" bin="#ef4444" />
+        <CrystalInBin crystal="#3b82f6" bin="#3b82f6" />
+        <CrystalInBin crystal="#22c55e" bin="#22c55e" />
+      </div>
 
       <p style={styles.questionLabel}>How did you know where each crystal goes?</p>
 
@@ -1113,7 +1162,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   binBtn: {
     width: "100%",
-    padding: "1.25rem",
+    padding: "1.1rem 1.25rem",
     borderRadius: "12px",
     border: "2px solid",
     background: "rgba(30,41,59,0.95)",
@@ -1122,6 +1171,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     cursor: "pointer",
     marginBottom: "0",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.75rem",
   },
   // Multiple choice
   questionLabel: {
@@ -1137,7 +1190,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   optionBtn: {
     width: "100%",
-    padding: "0.875rem 1rem",
+    padding: "0.75rem 1rem",
     borderRadius: "10px",
     border: "1px solid",
     textAlign: "left" as const,
@@ -1146,6 +1199,15 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     transition: "all 0.2s ease",
     lineHeight: 1.5,
+    display: "flex",
+    alignItems: "center",
+    gap: "0.7rem",
+  },
+  evidenceRow: {
+    display: "flex",
+    justifyContent: "center",
+    gap: "1.25rem",
+    padding: "0.25rem 0 1rem",
   },
   optionLetter: {
     color: "#818cf8",
