@@ -1,0 +1,125 @@
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { OptionListTask } from "./OptionListTask";
+import type { LessonTaskSkeleton, SkeletonFill } from "@l3arn/shared-types";
+
+const skeleton: LessonTaskSkeleton = {
+  id: "11111111-1111-4111-8111-111111111111",
+  masterySkillId: "22222222-2222-4222-8222-222222222222",
+  l3arnMasteryLevel: "emerging",
+  taskType: "choice",
+  correctAnswerRule: { field: "isTargetMatch", op: "eq", value: true },
+  distractorRule: { count: 2, plausibilityRule: { field: "isTargetMatch", op: "eq", value: false } },
+  transferExampleRule: { field: "isTargetMatch", op: "eq", value: true },
+  hintLadder: [
+    { tier: 1, kind: "nudge", content: "Nudge.", readAloudScript: "Nudge." },
+    { tier: 2, kind: "re-explain", content: "Re-explain.", readAloudScript: "Re-explain." },
+    { tier: 3, kind: "state-rule", content: "Rule.", readAloudScript: "Rule." },
+  ],
+  isActive: true,
+  version: 1,
+};
+
+const fill: SkeletonFill = {
+  skeletonId: skeleton.id,
+  variantKey: { skeletonId: skeleton.id, learningStyle: "reading-writing", readingTier: "grade-level", l3arnMasteryLevel: "emerging" },
+  storyFlavor: "Pick the right one.",
+  correctItem: { itemId: "opt-correct", attributes: { isTargetMatch: true }, presentationText: "The correct option.", readAloudScript: "The correct option." },
+  distractorItems: [
+    { itemId: "opt-wrong-1", attributes: { isTargetMatch: false }, presentationText: "A wrong option.", readAloudScript: "A wrong option." },
+    { itemId: "opt-wrong-2", attributes: { isTargetMatch: false }, presentationText: "Another wrong option.", readAloudScript: "Another wrong option." },
+  ],
+  transferItem: { itemId: "opt-transfer", attributes: { isTargetMatch: true }, presentationText: "A new correct option.", readAloudScript: "A new correct option." },
+  hintLadderFill: skeleton.hintLadder,
+  companionDialogueLine: "Which one is right?",
+};
+
+// Real ai-mistake-check fixture itemIds (see
+// packages/mission-compiler/src/curriculum/skeletons/ai-mistake-shape-sides.skeleton.ts).
+// Alphabetically, "critique-correct" < "critique-distractor-a" < "critique-distractor-b",
+// so a naive itemId.localeCompare sort renders the correct answer FIRST on every
+// single mount for this exact real content — a child could learn to "always tap
+// first" without reading any option. This fixture pins down that the ordering is
+// no longer alphabetical/correctness-correlated.
+const aiMistakeCheckFill: SkeletonFill = {
+  skeletonId: skeleton.id,
+  variantKey: fill.variantKey,
+  storyFlavor: "The AI made a claim. Was it right?",
+  correctItem: { itemId: "critique-correct", attributes: { isTargetMatch: true }, presentationText: "Yes, the AI was correct.", readAloudScript: "Yes, the AI was correct." },
+  distractorItems: [
+    { itemId: "critique-distractor-a", attributes: { isTargetMatch: false }, presentationText: "No, it missed a side.", readAloudScript: "No, it missed a side." },
+    { itemId: "critique-distractor-b", attributes: { isTargetMatch: false }, presentationText: "No, it counted an extra side.", readAloudScript: "No, it counted an extra side." },
+  ],
+  transferItem: fill.transferItem,
+  hintLadderFill: skeleton.hintLadder,
+  companionDialogueLine: "What do you think?",
+};
+
+describe("OptionListTask", () => {
+  it("does not render ai-mistake-check-style options in alphabetical order (regression: correct answer must not always land first)", () => {
+    render(<OptionListTask skeleton={skeleton} fill={aiMistakeCheckFill} onCorrect={vi.fn()} onWrong={vi.fn()} />);
+    const buttons = screen.getAllByRole("button");
+    const renderedOrder = buttons.map((btn) => btn.textContent);
+    const alphabeticalOrder = [
+      "Yes, the AI was correct.",
+      "No, it missed a side.",
+      "No, it counted an extra side.",
+    ];
+    expect(renderedOrder).not.toEqual(alphabeticalOrder);
+    // The correct option specifically must not be first, matching the concrete
+    // failure mode reported for this fixture's itemIds.
+    expect(renderedOrder[0]).not.toBe("Yes, the AI was correct.");
+  });
+
+  it("renders the story flavor and all three options (correct + 2 distractors) in a correctness-independent order", () => {
+    render(<OptionListTask skeleton={skeleton} fill={fill} onCorrect={vi.fn()} onWrong={vi.fn()} />);
+    expect(screen.getByText("Pick the right one.")).toBeInTheDocument();
+    expect(screen.getByText("The correct option.")).toBeInTheDocument();
+    expect(screen.getByText("A wrong option.")).toBeInTheDocument();
+    expect(screen.getByText("Another wrong option.")).toBeInTheDocument();
+  });
+
+  it("calls onCorrect when the correct option is tapped", () => {
+    const onCorrect = vi.fn();
+    render(<OptionListTask skeleton={skeleton} fill={fill} onCorrect={onCorrect} onWrong={vi.fn()} />);
+    fireEvent.click(screen.getByText("The correct option."));
+    expect(onCorrect).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onWrong (not onCorrect) when a distractor is tapped", () => {
+    const onCorrect = vi.fn();
+    const onWrong = vi.fn();
+    render(<OptionListTask skeleton={skeleton} fill={fill} onCorrect={onCorrect} onWrong={onWrong} />);
+    fireEvent.click(screen.getByText("A wrong option."));
+    expect(onWrong).toHaveBeenCalledTimes(1);
+    expect(onCorrect).not.toHaveBeenCalled();
+  });
+
+  it("renders the transferItem instead of the teaching items when isTransferStep is true", () => {
+    render(<OptionListTask skeleton={skeleton} fill={fill} onCorrect={vi.fn()} onWrong={vi.fn()} isTransferStep />);
+    expect(screen.getByText("A new correct option.")).toBeInTheDocument();
+    expect(screen.queryByText("The correct option.")).not.toBeInTheDocument();
+  });
+
+  it("renders a countable shape for options carrying a numeric actualSides attribute (ai-mistake-check)", () => {
+    const shapeFill: SkeletonFill = {
+      ...fill,
+      correctItem: { itemId: "critique-correct", attributes: { claimedSides: 5, actualSides: 6 }, presentationText: 'The companion said: "5 sides."', readAloudScript: "5 sides." },
+      distractorItems: [
+        { itemId: "critique-distractor-a", attributes: { claimedSides: 6, actualSides: 6 }, presentationText: 'The companion said: "6 sides."', readAloudScript: "6 sides." },
+        { itemId: "critique-distractor-b", attributes: { claimedSides: 4, actualSides: 4 }, presentationText: 'The companion said: "4 sides."', readAloudScript: "4 sides." },
+      ],
+    };
+    render(<OptionListTask skeleton={skeleton} fill={shapeFill} onCorrect={vi.fn()} onWrong={vi.fn()} />);
+    // One shape per option, each labeled with its real (actualSides) count —
+    // not the claimedSides count, since the shape must reflect ground truth
+    // for the child to check the claim against, not just repeat it.
+    expect(screen.getAllByLabelText("A shape with 6 sides")).toHaveLength(2); // correct (6) + distractor-a (6)
+    expect(screen.getByLabelText("A shape with 4 sides")).toBeInTheDocument();
+  });
+
+  it("renders no shape for options without a numeric actualSides attribute (choice/apply-to-new)", () => {
+    render(<OptionListTask skeleton={skeleton} fill={fill} onCorrect={vi.fn()} onWrong={vi.fn()} />);
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+});

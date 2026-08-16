@@ -10,8 +10,15 @@ interface StudentLayoutProps {
 export default function StudentLayout({ children }: StudentLayoutProps) {
   const router = useRouter();
 
+  // Previously routed to /student/enter with no token — that page requires a
+  // token minted by the parent dashboard's "Start Session" flow, so with none
+  // it either dead-ends (production: "session missing" error) or silently
+  // re-enters the same cached child (dev fallback). Neither gives the parent
+  // a way to switch to a different child. Routing to the parent dashboard
+  // directly is what actually lets them pick another child and start a new
+  // session for them.
   function handlePause() {
-    router.push("/student/enter");
+    router.push("/parent/dashboard");
   }
 
   return (

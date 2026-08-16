@@ -36,6 +36,9 @@ export * from "./parent-report.schema";
 // ── Lesson content contract (adaptive lesson skeletons — sub-project 1) ──────
 export * from "./lesson-skeleton.schema";
 
+// ── Mission lesson runtime response (sub-project 2) ───────────────────────────
+export * from "./lesson-runtime.schema";
+
 // ── Cross-cutting contracts ───────────────────────────────────────────────────
 export * from "./permissions.schema";
 export * from "./moderation.schema";

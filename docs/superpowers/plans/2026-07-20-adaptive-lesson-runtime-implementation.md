@@ -24,7 +24,7 @@
 - Create: `packages/shared-types/src/lesson-runtime.schema.ts`
 - Modify: `packages/shared-types/src/index.ts`
 
-- [ ] **Step 1: Add the two new evidence capture types**
+- [x] **Step 1: Add the two new evidence capture types**
 
 In `packages/shared-types/src/evidence.schema.ts`, find:
 
@@ -60,7 +60,7 @@ export const EvidenceCaptureTypeSchema = z.enum([
 ]);
 ```
 
-- [ ] **Step 2: Create the mission-lesson response schema**
+- [x] **Step 2: Create the mission-lesson response schema**
 
 Create `packages/shared-types/src/lesson-runtime.schema.ts`:
 
@@ -94,7 +94,7 @@ export const MissionLessonResponseSchema = z.object({
 export type MissionLessonResponse = z.infer<typeof MissionLessonResponseSchema>;
 ```
 
-- [ ] **Step 3: Export from the package index**
+- [x] **Step 3: Export from the package index**
 
 In `packages/shared-types/src/index.ts`, add after the `lesson-skeleton.schema` export block:
 
@@ -103,7 +103,7 @@ In `packages/shared-types/src/index.ts`, add after the `lesson-skeleton.schema` 
 export * from "./lesson-runtime.schema";
 ```
 
-- [ ] **Step 4: Typecheck and build**
+- [x] **Step 4: Typecheck and build**
 
 Run:
 ```bash
@@ -112,7 +112,7 @@ CI=true pnpm --filter @l3arn/shared-types build
 ```
 Expected: both clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/shared-types/src/evidence.schema.ts packages/shared-types/src/lesson-runtime.schema.ts packages/shared-types/src/index.ts
@@ -126,7 +126,7 @@ git commit -m "feat(shared-types): add discrimination/transfer evidence types an
 **Files:**
 - Create: `supabase/migrations/014_lesson_runtime_evidence_and_resume.sql`
 
-- [ ] **Step 1: Write the migration**
+- [x] **Step 1: Write the migration**
 
 Read `supabase/migrations/008_mission_runtime_companion.sql` first for the `mission_attempts` table shape and update-trigger convention (already read during planning — the table has no `current_task_index` column today).
 
@@ -192,12 +192,12 @@ COMMENT ON COLUMN public.mission_attempts.current_task_index IS
 COMMIT;
 ```
 
-- [ ] **Step 2: Apply the migration**
+- [x] **Step 2: Apply the migration**
 
 Run: `supabase db push`
 Expected: migration `014_lesson_runtime_evidence_and_resume` applies with no errors.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Query to confirm the constraint and column landed:
 ```sql
@@ -211,7 +211,7 @@ WHERE table_name = 'mission_attempts' AND column_name = 'current_task_index';
 ```
 Expected: constraint definition includes `discrimination-check` and `transfer-check`; column exists, type `integer`, default `0`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add supabase/migrations/014_lesson_runtime_evidence_and_resume.sql
@@ -227,7 +227,7 @@ git commit -m "feat(db): extend evidence event_type constraint and add mission_a
 
 This is necessary because this route validates `evidenceCaptureType` against its own inline Zod enum — a duplicate of `@l3arn/shared-types`'s `EvidenceCaptureTypeSchema`, not an import of it. Missing this step means Task 1's new evidence types would be silently rejected by `validateBody` at the API boundary even though the DB and shared-types both accept them.
 
-- [ ] **Step 1: Extend the inline enum**
+- [x] **Step 1: Extend the inline enum**
 
 In `services/ai-workers/src/routes/mission-runtime.route.ts`, find:
 
@@ -268,12 +268,12 @@ Change the `evidenceCaptureType` enum to:
   ]),
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `CI=true pnpm --filter @l3arn/ai-workers typecheck`
 Expected: clean.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add services/ai-workers/src/routes/mission-runtime.route.ts
@@ -290,7 +290,7 @@ git commit -m "feat(ai-workers): accept discrimination-check and transfer-check 
 
 The skeleton's rule is deliberately generic (`isTargetMatch === true`) rather than hardcoded to one color, because `lesson_task_skeletons` has a `UNIQUE (mastery_skill_id, l3arn_mastery_level, task_type)` constraint — only one `sort-categorize` row can exist for this skill/level. The three color "rounds" (red/blue/green) are three different `SkeletonFill`s validated against this one skeleton; which color is the actual target for a given round lives in the fill's presentation content (`storyFlavor`), not in the rule.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/mission-compiler/src/curriculum/skeletons/sort-color-crystals.skeleton.test.ts`:
 
@@ -346,12 +346,12 @@ describe("SORT_COLOR_CRYSTALS_SKELETON (worked example)", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `CI=true pnpm --filter @l3arn/mission-compiler test -- sort-color-crystals`
 Expected: FAIL — `Cannot find module './sort-color-crystals.skeleton'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `packages/mission-compiler/src/curriculum/skeletons/sort-color-crystals.skeleton.ts`:
 
@@ -463,12 +463,12 @@ export const SORT_ROUND_BLUE_FILL: SkeletonFill = makeRoundFill("blue", ["red", 
 export const SORT_ROUND_GREEN_FILL: SkeletonFill = makeRoundFill("green", ["red", "blue"]);
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `CI=true pnpm --filter @l3arn/mission-compiler test -- sort-color-crystals`
 Expected: PASS, all 5 tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mission-compiler/src/curriculum/skeletons/sort-color-crystals.skeleton.ts packages/mission-compiler/src/curriculum/skeletons/sort-color-crystals.skeleton.test.ts
@@ -483,7 +483,7 @@ git commit -m "feat(mission-compiler): add color-sort discrimination skeleton wi
 - Create: `packages/mission-compiler/src/curriculum/skeletons/apply-to-new-color.skeleton.ts`
 - Test: `packages/mission-compiler/src/curriculum/skeletons/apply-to-new-color.skeleton.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/mission-compiler/src/curriculum/skeletons/apply-to-new-color.skeleton.test.ts`:
 
@@ -515,12 +515,12 @@ describe("APPLY_TO_NEW_COLOR_SKELETON (worked example)", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `CI=true pnpm --filter @l3arn/mission-compiler test -- apply-to-new-color`
 Expected: FAIL — `Cannot find module './apply-to-new-color.skeleton'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `packages/mission-compiler/src/curriculum/skeletons/apply-to-new-color.skeleton.ts`:
 
@@ -598,12 +598,12 @@ export const APPLY_TO_NEW_COLOR_FILL: SkeletonFill = {
 };
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `CI=true pnpm --filter @l3arn/mission-compiler test -- apply-to-new-color`
 Expected: PASS, all 3 tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/mission-compiler/src/curriculum/skeletons/apply-to-new-color.skeleton.ts packages/mission-compiler/src/curriculum/skeletons/apply-to-new-color.skeleton.test.ts
@@ -619,7 +619,7 @@ git commit -m "feat(mission-compiler): add apply-to-new transfer-check skeleton 
 - Test: `packages/mission-compiler/src/curriculum/mission-001-lesson-sequence.test.ts`
 - Modify: `packages/mission-compiler/src/index.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/mission-compiler/src/curriculum/mission-001-lesson-sequence.test.ts`:
 
@@ -653,12 +653,12 @@ describe("MISSION_001_LESSON_SEQUENCE", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `CI=true pnpm --filter @l3arn/mission-compiler test -- mission-001-lesson-sequence`
 Expected: FAIL — `Cannot find module './mission-001-lesson-sequence'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `packages/mission-compiler/src/curriculum/mission-001-lesson-sequence.ts`:
 
@@ -748,12 +748,12 @@ export const MISSION_001_LESSON_SEQUENCE: MissionLessonTask[] = [
 ];
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `CI=true pnpm --filter @l3arn/mission-compiler test -- mission-001-lesson-sequence`
 Expected: PASS, all 3 tests green.
 
-- [ ] **Step 5: Export from the package index**
+- [x] **Step 5: Export from the package index**
 
 In `packages/mission-compiler/src/index.ts`, add:
 
@@ -762,7 +762,7 @@ In `packages/mission-compiler/src/index.ts`, add:
 export { MISSION_001_LESSON_SEQUENCE } from "./curriculum/mission-001-lesson-sequence";
 ```
 
-- [ ] **Step 6: Full package regression**
+- [x] **Step 6: Full package regression**
 
 Run:
 ```bash
@@ -772,7 +772,7 @@ CI=true pnpm --filter @l3arn/mission-compiler build
 ```
 Expected: all test suites pass (should now be 8 suites — the 4 from sub-project 1 plus this task's 3 new fixture files), typecheck and build clean.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/mission-compiler/src/curriculum/mission-001-lesson-sequence.ts packages/mission-compiler/src/curriculum/mission-001-lesson-sequence.test.ts packages/mission-compiler/src/index.ts
@@ -787,7 +787,7 @@ git commit -m "feat(mission-compiler): assemble and export Mission 001's fixed l
 - Create: `services/ai-workers/src/missions/mission-lesson.ts`
 - Modify: `services/ai-workers/src/routes/mission-runtime.route.ts`
 
-- [ ] **Step 1: Write the lesson-fetch logic**
+- [x] **Step 1: Write the lesson-fetch logic**
 
 Create `services/ai-workers/src/missions/mission-lesson.ts`:
 
@@ -879,7 +879,7 @@ export async function updateMissionTaskIndex(
 }
 ```
 
-- [ ] **Step 2: Add the routes**
+- [x] **Step 2: Add the routes**
 
 In `services/ai-workers/src/routes/mission-runtime.route.ts`, add the import:
 
@@ -955,12 +955,12 @@ studentMissionRouter.post(
 );
 ```
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run: `CI=true pnpm --filter @l3arn/ai-workers typecheck`
 Expected: clean.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add services/ai-workers/src/missions/mission-lesson.ts services/ai-workers/src/routes/mission-runtime.route.ts
@@ -978,14 +978,14 @@ git commit -m "feat(ai-workers): add GET .../lesson and POST .../task-index rout
 
 Apps/web currently has zero test infrastructure (no test script, no test libraries). This is necessary before any task-type renderer component can have a test.
 
-- [ ] **Step 1: Add dependencies**
+- [x] **Step 1: Add dependencies**
 
 Run:
 ```bash
 CI=true pnpm add -D vitest@^2.1.0 @vitejs/plugin-react@^4.3.0 @testing-library/react@^16.0.0 @testing-library/jest-dom@^6.5.0 jsdom@^25.0.0 --filter @l3arn/web
 ```
 
-- [ ] **Step 2: Create the Vitest config**
+- [x] **Step 2: Create the Vitest config**
 
 Create `apps/web/vitest.config.ts`:
 
@@ -1009,7 +1009,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 3: Create the test setup file**
+- [x] **Step 3: Create the test setup file**
 
 Create `apps/web/src/test/setup.ts`:
 
@@ -1017,7 +1017,7 @@ Create `apps/web/src/test/setup.ts`:
 import "@testing-library/jest-dom/vitest";
 ```
 
-- [ ] **Step 4: Add the test script**
+- [x] **Step 4: Add the test script**
 
 In `apps/web/package.json`, add to `"scripts"`:
 
@@ -1025,7 +1025,7 @@ In `apps/web/package.json`, add to `"scripts"`:
     "test": "vitest run"
 ```
 
-- [ ] **Step 5: Verify the setup with a smoke test**
+- [x] **Step 5: Verify the setup with a smoke test**
 
 Create `apps/web/src/test/smoke.test.tsx` (temporary — deleted in Step 6):
 
@@ -1044,13 +1044,13 @@ describe("vitest + RTL setup", () => {
 Run: `CI=true pnpm --filter @l3arn/web test`
 Expected: PASS, 1 test green.
 
-- [ ] **Step 6: Delete the smoke test**
+- [x] **Step 6: Delete the smoke test**
 
 ```bash
 rm apps/web/src/test/smoke.test.tsx
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web/vitest.config.ts apps/web/src/test/setup.ts apps/web/package.json pnpm-lock.yaml
@@ -1064,7 +1064,7 @@ git commit -m "chore(web): add Vitest + React Testing Library test infrastructur
 **Files:**
 - Modify: `apps/web/src/lib/student-session.ts`
 
-- [ ] **Step 1: Add the fetch functions**
+- [x] **Step 1: Add the fetch functions**
 
 In `apps/web/src/lib/student-session.ts`, add near `completeMission`:
 
@@ -1090,7 +1090,7 @@ export function updateTaskIndex(
 }
 ```
 
-- [ ] **Step 2: Add an `authedGet` helper**
+- [x] **Step 2: Add an `authedGet` helper**
 
 No `authedGet` helper exists yet — only `authedPost` (confirmed by reading `apps/web/src/lib/student-session.ts:233-266`). Add this new function immediately after the existing `authedPost` function, mirroring its exact header/token/error-handling pattern:
 
@@ -1130,12 +1130,12 @@ async function authedGet<T>(path: string): Promise<ApiOutcome<T>> {
 }
 ```
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run: `CI=true pnpm --filter @l3arn/web typecheck`
 Expected: clean.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/web/src/lib/student-session.ts
@@ -1152,7 +1152,7 @@ git commit -m "feat(web): add fetchMissionLesson and updateTaskIndex to student-
 
 All three of these task types share the identical `correctItem`/`distractorItems` data shape and the "pick the right one from a list" interaction — this is the reusable renderer for that pattern, built first since it's structurally simpler than the sort-tray visual (it's the existing option-button pattern, upgraded).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/app/(student)/mission/[missionId]/components/OptionListTask.test.tsx`:
 
@@ -1226,12 +1226,12 @@ describe("OptionListTask", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `CI=true pnpm --filter @l3arn/web test -- OptionListTask`
 Expected: FAIL — `Cannot find module './OptionListTask'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `apps/web/src/app/(student)/mission/[missionId]/components/OptionListTask.tsx`:
 
@@ -1337,12 +1337,12 @@ const optionListStyles: Record<string, React.CSSProperties> = {
 };
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `CI=true pnpm --filter @l3arn/web test -- OptionListTask`
 Expected: PASS, all 4 tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/app/\(student\)/mission/\[missionId\]/components/OptionListTask.tsx apps/web/src/app/\(student\)/mission/\[missionId\]/components/OptionListTask.test.tsx
@@ -1357,7 +1357,7 @@ git commit -m "feat(web): add OptionListTask renderer for choice/apply-to-new/ai
 - Create: `apps/web/src/app/(student)/mission/[missionId]/components/SortTrayTask.tsx`
 - Test: `apps/web/src/app/(student)/mission/[missionId]/components/SortTrayTask.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/app/(student)/mission/[missionId]/components/SortTrayTask.test.tsx`:
 
@@ -1435,12 +1435,12 @@ describe("SortTrayTask", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `CI=true pnpm --filter @l3arn/web test -- SortTrayTask`
 Expected: FAIL — `Cannot find module './SortTrayTask'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `apps/web/src/app/(student)/mission/[missionId]/components/SortTrayTask.tsx`:
 
@@ -1556,12 +1556,12 @@ const sortTrayStyles: Record<string, React.CSSProperties> = {
 };
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `CI=true pnpm --filter @l3arn/web test -- SortTrayTask`
 Expected: PASS, all 4 tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/app/\(student\)/mission/\[missionId\]/components/SortTrayTask.tsx apps/web/src/app/\(student\)/mission/\[missionId\]/components/SortTrayTask.test.tsx
@@ -1576,7 +1576,7 @@ git commit -m "feat(web): add SortTrayTask renderer for color-sort discriminatio
 - Create: `apps/web/src/app/(student)/mission/[missionId]/components/HintButton.tsx`
 - Test: `apps/web/src/app/(student)/mission/[missionId]/components/HintButton.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/app/(student)/mission/[missionId]/components/HintButton.test.tsx`:
 
@@ -1623,12 +1623,12 @@ describe("HintButton", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `CI=true pnpm --filter @l3arn/web test -- HintButton`
 Expected: FAIL — `Cannot find module './HintButton'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `apps/web/src/app/(student)/mission/[missionId]/components/HintButton.tsx`:
 
@@ -1688,12 +1688,12 @@ const hintStyles: Record<string, React.CSSProperties> = {
 };
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `CI=true pnpm --filter @l3arn/web test -- HintButton`
 Expected: PASS, all 3 tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/app/\(student\)/mission/\[missionId\]/components/HintButton.tsx apps/web/src/app/\(student\)/mission/\[missionId\]/components/HintButton.test.tsx
@@ -1708,7 +1708,7 @@ git commit -m "feat(web): add child-triggered escalating HintButton component"
 - Create: `apps/web/src/app/(student)/mission/[missionId]/components/SpeakerButton.tsx`
 - Test: `apps/web/src/app/(student)/mission/[missionId]/components/SpeakerButton.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/src/app/(student)/mission/[missionId]/components/SpeakerButton.test.tsx`:
 
@@ -1741,12 +1741,12 @@ describe("SpeakerButton", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `CI=true pnpm --filter @l3arn/web test -- SpeakerButton`
 Expected: FAIL — `Cannot find module './SpeakerButton'`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `apps/web/src/app/(student)/mission/[missionId]/components/SpeakerButton.tsx`:
 
@@ -1796,12 +1796,12 @@ const speakerStyles: Record<string, React.CSSProperties> = {
 };
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `CI=true pnpm --filter @l3arn/web test -- SpeakerButton`
 Expected: PASS, both tests green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/app/\(student\)/mission/\[missionId\]/components/SpeakerButton.tsx apps/web/src/app/\(student\)/mission/\[missionId\]/components/SpeakerButton.test.tsx
@@ -1817,11 +1817,11 @@ git commit -m "feat(web): add universal read-aloud SpeakerButton component"
 
 This is the integration task — replacing the four hardcoded step components (`CrystalSortStep`, `AIMistakeStep`, `ExplainRuleStep`; `ReflectionStep` is kept as-is, it is not a graded content-contract task type) with the two new renderers, fetched from the real `/lesson` endpoint, with an exit button and resume.
 
-- [ ] **Step 1: Read the current file in full**
+- [x] **Step 1: Read the current file in full**
 
 Read `apps/web/src/app/(student)/mission/[missionId]/page.tsx` in full before editing — it's ~1000 lines and this task touches the state machine, the step-rendering block, and adds new state. Do not guess at surrounding code; every edit below must be applied against the actual current content.
 
-- [ ] **Step 2: Add new imports and state**
+- [x] **Step 2: Add new imports and state**
 
 Add imports:
 ```ts
@@ -1841,7 +1841,7 @@ const [isTransferStep, setIsTransferStep] = useState(false);
 const [showExitConfirm, setShowExitConfirm] = useState(false);
 ```
 
-- [ ] **Step 3: Fetch the lesson sequence after briefing loads**
+- [x] **Step 3: Fetch the lesson sequence after briefing loads**
 
 In the existing `useEffect` that calls `startMission` (the one that sets `phase` to `"briefing"` on success), add a lesson fetch right after the mission loads successfully:
 
@@ -1862,7 +1862,7 @@ void startMission(missionId).then((outcome) => {
 });
 ```
 
-- [ ] **Step 4: Replace the gameplay-step render block**
+- [x] **Step 4: Replace the gameplay-step render block**
 
 Find the `// ── Render: Gameplay steps` block (the section with `if (stepIndex <= 2)`, the AI Mistake / Explain Rule / Reflection branches). Replace the sort/choice/apply-to-new branches — **keep the existing `ReflectionStep` branch exactly as-is** (it's the final, ungraded step and stays hardcoded per the design spec):
 
@@ -1953,7 +1953,7 @@ Find the `// ── Render: Gameplay steps` block (the section with `if (stepInd
 
 Note: `apply-to-new` reuses `SortTrayTask` with `isTransferStep` because Mission 001's apply-to-new instance is a color-transfer check (the same visual as the sort rounds); a future mission whose apply-to-new instance follows a `choice`-type teaching task would use `OptionListTask` with `isTransferStep` instead — the branch is on `skeleton.taskType` combined with which teaching task preceded it, not a hardcoded assumption.
 
-- [ ] **Step 5: Add the new styles**
+- [x] **Step 5: Add the new styles**
 
 Add to the `styles` object:
 ```ts
@@ -1978,16 +1978,16 @@ Add to the `styles` object:
   },
 ```
 
-- [ ] **Step 6: Remove the now-unused hardcoded step components and their data**
+- [x] **Step 6: Remove the now-unused hardcoded step components and their data**
 
 Delete the `CrystalSortStep` function and `CRYSTAL_STEPS` constant, the `AIMistakeStep` function and `AI_MISTAKE_OPTIONS` constant, and the `ExplainRuleStep` function and `EXPLAIN_OPTIONS` constant. **Keep `ReflectionStep` and `REFLECTION_OPTIONS`** — unchanged, still used.
 
-- [ ] **Step 7: Typecheck**
+- [x] **Step 7: Typecheck**
 
 Run: `CI=true pnpm --filter @l3arn/web typecheck`
 Expected: clean (no dangling references to the deleted components).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/web/src/app/\(student\)/mission/\[missionId\]/page.tsx
@@ -2000,11 +2000,11 @@ git commit -m "feat(web): wire Mission 001 to the adaptive lesson runtime, add e
 
 This repo has no committed Playwright test suite (confirmed: no `playwright.config.*`, no `apps/web` test devDependency for it) — prior verification work in this repo uses the Playwright MCP tools for one-off, screenshotted live verification passes rather than a persisted `.spec.ts` file. Follow that established practice here rather than introducing new CI infrastructure this plan doesn't need.
 
-- [ ] **Step 1: Start the dev server**
+- [x] **Step 1: Start the dev server**
 
 Run: `pnpm --filter @l3arn/web dev` (background)
 
-- [ ] **Step 2: Drive the full flow with Playwright MCP tools**
+- [x] **Step 2: Drive the full flow with Playwright MCP tools**
 
 Using `mcp__plugin_playwright_playwright__browser_navigate` and related tools (or the currently-available Playwright MCP tool names — search via ToolSearch if the exact names have changed since this plan was written):
 1. Log in as an existing test child account (see project memory for test-account creds), start Mission 001
@@ -2015,6 +2015,6 @@ Using `mcp__plugin_playwright_playwright__browser_navigate` and related tools (o
 6. Screenshot each step
 7. Separately: start a fresh attempt, tap "Exit mission" mid-sort-round, confirm exit, re-enter the mission, and verify it resumes on the same task rather than restarting
 
-- [ ] **Step 3: Write a short TEST_RESULTS report**
+- [x] **Step 3: Write a short TEST_RESULTS report**
 
 Following the `testing-mandate` skill's convention, write `TEST_RESULTS_adaptive-lesson-runtime.md` documenting what was verified live, with screenshots referenced, before declaring this plan complete.
