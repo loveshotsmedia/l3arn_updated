@@ -204,7 +204,10 @@ function ChildSettingsPanel({ child, onClose, onSaved }: SettingsPanelProps) {
                 <p className="text-xs mt-0.5" style={{ color: "var(--color-text-muted)" }}>
                   {tier === "full" && "See all session detail, evidence highlights, and calibration signals."}
                   {tier === "summary" && "See aggregate mastery levels only. Raw signals and evidence highlights are hidden."}
-                  {tier === "safety-override" && "Strictest setting. Only safety-flagged events are surfaced. Use for maximum privacy."}
+                  {/* Agent 21 criterion A0: no safety-flag claim until the report is
+                      bound to a parent-safe notice source. Describes actual behaviour:
+                      safety-override shows the same detail as "full" today. */}
+                  {tier === "safety-override" && "Reserved for safety review. Shows full session detail, evidence highlights, and calibration signals."}
                 </p>
               </div>
             </label>
