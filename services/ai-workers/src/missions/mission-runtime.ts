@@ -94,11 +94,11 @@ export async function startMission(
   const companionName =
     (companion as { character_name?: string } | null)?.character_name ?? undefined;
 
-  // Compile. compile() validates with Zod and falls back to static content if
+  // Compile. compileStart() validates with Zod and falls back to static content if
   // the AI call fails — it does not throw for that case. Unexpected throws
   // propagate to the route (→ 500).
   const compiler = new MissionCompiler();
-  const output = await compiler.compile({
+  const output = await compiler.compileStart({
     parentIntent: { curriculumGoals: [], gradeLevel: grade, blockedTopics: [], subjectFocus: [] },
     childPersonalization: {
       displayName,
@@ -142,7 +142,7 @@ export async function startMission(
     throw new MissionRuntimeError(500, "MISSION_START_ERROR", "Could not start the mission. Please try again.");
   }
 
-  const m = output.missionData.student3dMission;
+  const m = output.student3dMission;
 
   log("info", "startMission: attempt created", {
     missionAttemptId: attempt.id,

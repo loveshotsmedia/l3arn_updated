@@ -91,11 +91,18 @@ export default function ConsentPage() {
       if (childProfileId) {
         const { error: permError } = await supabase
           .from("child_permissions")
-          .upsert({
-            child_profile_id: childProfileId,
-            model_improvement_opt_in: modelImprovementOptIn,
-            updated_by_parent_account_id: session.user.id,
-          });
+          .upsert(
+            {
+              child_profile_id: childProfileId,
+              model_improvement_opt_in: modelImprovementOptIn,
+              updated_by_parent_account_id: session.user.id,
+            },
+            // child_permissions is one-row-per-child (child_profile_id UNIQUE, 001:516).
+            // Without this, supabase-js defaults the conflict target to the PK (id),
+            // so a repeat write inserts a fresh id and 409s on the child_profile_id
+            // unique constraint instead of updating. Resolve on the real constraint.
+            { onConflict: "child_profile_id" },
+          );
         // Non-fatal if this fails — permissions are created in the next step
         if (permError) {
           console.warn("[L3ARN] Could not pre-set model_improvement_opt_in:", permError.message);

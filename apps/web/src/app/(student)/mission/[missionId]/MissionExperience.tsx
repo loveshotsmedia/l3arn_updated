@@ -6,8 +6,10 @@ import {
   startMission,
   completeMission,
   updateCalibration,
+  unlockHolding,
   type CompleteMissionInput,
 } from "../../../../lib/student-session";
+import { useWorldStore } from "@l3arn/world-engine";
 import type { StartMissionResponse, CompleteMissionResponse } from "@l3arn/shared-types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -48,6 +50,94 @@ async function tryCapture(
   }
 }
 
+// ── Task-type visuals (Mayer-compliant: instructionally RELEVANT graphics only;
+//    static, calm, no animation — this surface is Mission mode, spec §4) ────────
+
+type TaskKind = "sort" | "inspect" | "explain";
+
+/** Map a free-form interactionType string onto one of three visual kinds. */
+function taskKind(interactionType: string, description: string): TaskKind {
+  const hay = `${interactionType} ${description}`.toLowerCase();
+  if (/mistake|wrong|error|check|find|pick|spot|identify/.test(hay)) return "inspect";
+  if (/explain|why|rule|tell|reflect|describe|reason/.test(hay)) return "explain";
+  return "sort";
+}
+
+function TaskIcon({ kind }: { kind: TaskKind }) {
+  const stroke = "#818cf8";
+  if (kind === "sort") {
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="5" cy="5" r="2.4" fill={stroke} opacity="0.9" />
+        <circle cx="12" cy="4" r="1.8" fill={stroke} opacity="0.55" />
+        <path d="M3 11h5v6H3zM12 11h5v6h-5z" stroke={stroke} strokeWidth="1.4" />
+        <path d="M5.5 8v2M13 7v3" stroke={stroke} strokeWidth="1.2" strokeDasharray="2 1.6" />
+      </svg>
+    );
+  }
+  if (kind === "inspect") {
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="8.5" cy="8.5" r="5" stroke={stroke} strokeWidth="1.6" />
+        <path d="M12.5 12.5L17 17" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" />
+        <path d="M6.5 8.5l1.4 1.4 2.6-2.8" stroke={stroke} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M3 4h14v9H9l-3.5 3.5V13H3z" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M6.5 7.5h7M6.5 10h4.5" stroke={stroke} strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/**
+ * Briefing illustration — a calm, static picture of the mission's core task,
+ * chosen from the first task's kind. Relevant-only per Mayer's multimedia
+ * principle: it depicts what the child will actually do, nothing decorative.
+ */
+function MissionIllustration({ kind }: { kind: TaskKind }) {
+  if (kind !== "sort") {
+    // Non-sorting missions get a subdued terminal glyph — relevant (it's the
+    // Computer Core), quiet, and generic across AI-generated variants.
+    return (
+      <div style={styles.illustrationWrap} aria-hidden="true">
+        <svg width="220" height="96" viewBox="0 0 220 96" fill="none">
+          <rect x="70" y="14" width="80" height="52" rx="6" stroke="#6366f1" strokeWidth="2" />
+          <rect x="78" y="22" width="64" height="30" rx="3" fill="rgba(129,140,248,0.25)" />
+          <path d="M98 66v10M122 66v10M86 80h48" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </div>
+    );
+  }
+  const orbs = [
+    { cx: 50, fill: "#60a5fa" },
+    { cx: 110, fill: "#f87171" },
+    { cx: 170, fill: "#fde047" },
+  ];
+  return (
+    <div style={styles.illustrationWrap} aria-hidden="true">
+      <svg width="220" height="96" viewBox="0 0 220 96" fill="none">
+        {orbs.map(({ cx, fill }) => (
+          <g key={cx}>
+            <circle cx={cx} cy="18" r="10" fill={fill} opacity="0.9" />
+            <path d={`M${cx} 33v18`} stroke={fill} strokeWidth="2" strokeDasharray="3 3" opacity="0.6" />
+            <path d={`M${cx - 4} 46l4 6 4-6`} fill="none" stroke={fill} strokeWidth="2" opacity="0.6" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d={`M${cx - 16} 60l3 26h26l3-26`}
+              stroke={fill}
+              strokeWidth="2"
+              fill={`${fill}22`}
+              strokeLinejoin="round"
+            />
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 // ── Companion Dialogue Component ──────────────────────────────────────────────
 
 function CompanionDialogue({ text }: { text: string }) {
@@ -59,6 +149,47 @@ function CompanionDialogue({ text }: { text: string }) {
       </div>
       <p style={styles.companionText}>{text}</p>
     </div>
+  );
+}
+
+// ── Crystal & bin glyphs (instructionally relevant visuals — Mayer-compliant,
+//    static, calm; this surface is Mission mode, spec §4) ──────────────────────
+
+/** A gem crystal sitting in a bin — THE visual for "which crystal is in which bin". */
+function CrystalInBin({ crystal, bin, size = 46 }: { crystal: string; bin: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 44 44" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <path d="M8 20l4 18h20l4-18" stroke={bin} strokeWidth="2.4" fill={`${bin}26`} strokeLinejoin="round" />
+      <path d="M22 4l8 10-8 10-8-10z" fill={crystal} stroke="rgba(15,23,42,0.55)" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M18 9.5h8M22 4v20" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
+    </svg>
+  );
+}
+
+/** A standalone gem crystal (used for the sorting rows). */
+function Gem({ hex, glow, size = 54 }: { hex: string; glow: string; size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 40 40"
+      fill="none"
+      aria-hidden="true"
+      style={{ filter: `drop-shadow(0 0 8px ${glow})` }}
+    >
+      <path d="M20 3l11 13-11 21L9 16z" fill={hex} stroke="rgba(15,23,42,0.5)" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M9 16h22M20 3L14 16l6 21M20 3l6 13-6 21" stroke="rgba(255,255,255,0.3)" strokeWidth="1" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** An open bin (used inside the sort button). */
+function BinGlyph({ hex, size = 30 }: { hex: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 30 30" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <path d="M4 8l3.5 18h15L26 8" stroke={hex} strokeWidth="2.2" fill={`${hex}26`} strokeLinejoin="round" />
+      <path d="M2.5 8h25" stroke={hex} strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
   );
 }
 
@@ -100,12 +231,12 @@ function CrystalSortStep({ stepDef, missionAttemptId, onComplete }: CrystalSortS
           <span
             key={i}
             style={{
-              ...styles.crystalEmoji,
               opacity: sorted ? 0.3 : 1,
               transition: "opacity 0.4s ease",
+              display: "flex",
             }}
           >
-            {stepDef.emoji}
+            <Gem hex={stepDef.hex} glow={stepDef.glow} />
           </span>
         ))}
       </div>
@@ -123,7 +254,8 @@ function CrystalSortStep({ stepDef, missionAttemptId, onComplete }: CrystalSortS
         onClick={handleSort}
         disabled={sorted}
       >
-        {sorted ? `✓ ${stepDef.color} crystals sorted!` : `${stepDef.color} Bin — click to sort`}
+        <BinGlyph hex={stepDef.hex} />
+        <span>{sorted ? `✓ ${stepDef.color} crystals sorted!` : `${stepDef.color} Bin — click to sort`}</span>
       </button>
     </div>
   );
@@ -132,10 +264,10 @@ function CrystalSortStep({ stepDef, missionAttemptId, onComplete }: CrystalSortS
 // ── AI Mistake Check Step (step 3) ────────────────────────────────────────────
 
 const AI_MISTAKE_OPTIONS = [
-  { label: "A red crystal in the blue bin", correct: true },
-  { label: "A blue crystal in the blue bin", correct: false },
-  { label: "A green crystal in the green bin", correct: false },
-  { label: "A purple crystal in the purple bin", correct: false },
+  { label: "A red crystal in the blue bin", correct: true, crystal: "#ef4444", bin: "#3b82f6" },
+  { label: "A blue crystal in the blue bin", correct: false, crystal: "#3b82f6", bin: "#3b82f6" },
+  { label: "A green crystal in the green bin", correct: false, crystal: "#22c55e", bin: "#22c55e" },
+  { label: "A purple crystal in the purple bin", correct: false, crystal: "#a855f7", bin: "#a855f7" },
 ];
 
 interface AIMistakeStepProps {
@@ -210,8 +342,9 @@ function AIMistakeStep({ missionAttemptId, onComplete, onHintUsed }: AIMistakeSt
               onClick={() => handleChoice(idx)}
               disabled={correct}
             >
-              <span style={styles.optionLetter}>{String.fromCharCode(65 + idx)})</span>{" "}
-              {opt.label}
+              <span style={styles.optionLetter}>{String.fromCharCode(65 + idx)})</span>
+              <CrystalInBin crystal={opt.crystal} bin={opt.bin} />
+              <span style={{ flex: 1 }}>{opt.label}</span>
               {showCorrect && <span style={styles.optionCheck}> ✓</span>}
               {showWrong && <span style={styles.optionX}> ✗</span>}
             </button>
@@ -270,6 +403,12 @@ function ExplainRuleStep({ missionAttemptId, onComplete, onHintUsed }: ExplainRu
       <p style={styles.narrative}>You sorted all three bins perfectly! Now tell me how you did it.</p>
 
       <CompanionDialogue text={companionLine} />
+
+      <div style={styles.evidenceRow} aria-label="The bins you sorted">
+        <CrystalInBin crystal="#ef4444" bin="#ef4444" />
+        <CrystalInBin crystal="#3b82f6" bin="#3b82f6" />
+        <CrystalInBin crystal="#22c55e" bin="#22c55e" />
+      </div>
 
       <p style={styles.questionLabel}>How did you know where each crystal goes?</p>
 
@@ -526,12 +665,23 @@ export function MissionExperience({ forcedMissionId, onExit }: MissionExperience
     if (outcome.ok) {
       setResult(outcome.data);
       setPhase("done");
+      // Mastery Makes the World (spec §3.4): demonstrated mastery of Mission 001
+      // unlocks the "Fractions Observatory" holding, which then appears in the
+      // Great Hall. Best-effort — a failure here must NOT block the
+      // mission-complete screen; the authoritative mastery record
+      // (completeMission's response) is already saved.
+      if (missionId === "mission-001") {
+        const unlockResult = await unlockHolding("fractions-observatory", missionId);
+        if (unlockResult.ok) {
+          useWorldStore.getState().addUnlockedHoldingId("fractions-observatory");
+        }
+      }
       updateCalibration().catch(() => {}); // best-effort: update calibration snapshot
     } else {
       setErrorMessage(outcome.message);
       setPhase("error");
     }
-  }, [mission, totalAttempts, hintsUsed]);
+  }, [mission, totalAttempts, hintsUsed, missionId]);
 
   // When stepIndex advances past 5, kick off completion
   useEffect(() => {
@@ -636,17 +786,25 @@ export function MissionExperience({ forcedMissionId, onExit }: MissionExperience
           <h1 style={styles.title}>{title}</h1>
           <p style={styles.narrative}>{mission.storyHook}</p>
 
+          <MissionIllustration
+            kind={mission.tasks[0] ? taskKind(mission.tasks[0].interactionType, mission.tasks[0].description) : "sort"}
+          />
+
           <CompanionDialogue text="Let's figure this out together! Which crystal should go first?" />
 
           <div style={styles.section}>
             <h3 style={styles.sectionTitle}>Your Tasks</h3>
-            <ul style={styles.taskList}>
-              {mission.tasks.map((t) => (
+            <ol style={styles.taskList}>
+              {mission.tasks.map((t, i) => (
                 <li key={t.id} style={styles.taskItem}>
-                  {t.description}
+                  <span style={styles.taskNumber}>{i + 1}</span>
+                  <span style={styles.taskIconWrap}>
+                    <TaskIcon kind={taskKind(t.interactionType, t.description)} />
+                  </span>
+                  <span style={styles.taskText}>{t.description}</span>
                 </li>
               ))}
-            </ul>
+            </ol>
           </div>
 
           <div style={styles.rewardBanner}>
@@ -786,7 +944,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #1e293b",
     borderRadius: "16px",
     padding: "2rem",
-    maxWidth: "600px",
+    maxWidth: "680px",
     width: "100%",
   },
   locationBadge: {
@@ -833,11 +991,41 @@ const styles: Record<string, React.CSSProperties> = {
   taskItem: {
     background: "rgba(99, 102, 241, 0.08)",
     border: "1px solid rgba(99, 102, 241, 0.2)",
-    borderRadius: "8px",
-    padding: "0.625rem 0.875rem",
+    borderRadius: "10px",
+    padding: "0.8rem 1rem",
     color: "#cbd5e1",
-    fontSize: "0.9rem",
-    lineHeight: 1.5,
+    fontSize: "0.95rem",
+    lineHeight: 1.55,
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+  },
+  taskNumber: {
+    flexShrink: 0,
+    width: "1.5rem",
+    height: "1.5rem",
+    borderRadius: "999px",
+    background: "rgba(99, 102, 241, 0.25)",
+    border: "1px solid rgba(129, 140, 248, 0.5)",
+    color: "#c7d2fe",
+    fontSize: "0.8rem",
+    fontWeight: 700,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  taskIconWrap: {
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+  },
+  taskText: {
+    flex: 1,
+  },
+  illustrationWrap: {
+    display: "flex",
+    justifyContent: "center",
+    padding: "0.75rem 0 1rem",
   },
   targetList: {
     listStyle: "none",
@@ -974,7 +1162,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   binBtn: {
     width: "100%",
-    padding: "1.25rem",
+    padding: "1.1rem 1.25rem",
     borderRadius: "12px",
     border: "2px solid",
     background: "rgba(30,41,59,0.95)",
@@ -983,6 +1171,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     cursor: "pointer",
     marginBottom: "0",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.75rem",
   },
   // Multiple choice
   questionLabel: {
@@ -998,7 +1190,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   optionBtn: {
     width: "100%",
-    padding: "0.875rem 1rem",
+    padding: "0.75rem 1rem",
     borderRadius: "10px",
     border: "1px solid",
     textAlign: "left" as const,
@@ -1007,6 +1199,15 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     transition: "all 0.2s ease",
     lineHeight: 1.5,
+    display: "flex",
+    alignItems: "center",
+    gap: "0.7rem",
+  },
+  evidenceRow: {
+    display: "flex",
+    justifyContent: "center",
+    gap: "1.25rem",
+    padding: "0.25rem 0 1rem",
   },
   optionLetter: {
     color: "#818cf8",

@@ -32,6 +32,8 @@ export * from "./world-event.schema";
 export * from "./evidence.schema";
 export * from "./rewards.schema";
 export * from "./parent-report.schema";
+// world-holdings: string IDs only; no cross-schema imports (mastery-gated buildings, spec §3.4).
+export * from "./world-holdings.schema";
 
 // ── Lesson content contract (adaptive lesson skeletons — sub-project 1) ──────
 export * from "./lesson-skeleton.schema";

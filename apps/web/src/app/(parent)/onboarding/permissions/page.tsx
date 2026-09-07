@@ -132,17 +132,22 @@ export default function PermissionsSetupPage() {
       }
 
       // Upsert child_permissions
-      const { error: permError } = await supabase.from("child_permissions").upsert({
-        child_profile_id: childProfileId,
-        audio_enabled: audioEnabled,
-        ai_interaction_enabled: true, // default true; configurable in settings later
-        allowed_delivery_modes: [...DELIVERY_MODES], // all three modes allowed by default
-        curriculum_approval_mode: approvalMode,
-        // model_improvement_opt_in was set in consent step — preserve it
-        screen_limit_minutes_per_day: screenLimit,
-        blocked_topics: blockedTopics,
-        updated_by_parent_account_id: session.user.id,
-      });
+      const { error: permError } = await supabase.from("child_permissions").upsert(
+        {
+          child_profile_id: childProfileId,
+          audio_enabled: audioEnabled,
+          ai_interaction_enabled: true, // default true; configurable in settings later
+          allowed_delivery_modes: [...DELIVERY_MODES], // all three modes allowed by default
+          curriculum_approval_mode: approvalMode,
+          // model_improvement_opt_in was set in consent step — preserve it
+          screen_limit_minutes_per_day: screenLimit,
+          blocked_topics: blockedTopics,
+          updated_by_parent_account_id: session.user.id,
+        },
+        // Resolve on the child_profile_id UNIQUE constraint (001:516), not the PK —
+        // otherwise this second write (consent created the row) 409s. See consent step.
+        { onConflict: "child_profile_id" },
+      );
 
       if (permError) throw permError;
 
