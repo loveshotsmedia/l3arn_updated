@@ -1,10 +1,16 @@
 /**
  * Mission runtime — start + complete (Hero Slice Phase B).
  *
- * startMission:   authenticate session → compile Mission 001 (Zod-validated;
- *                 static fallback on AI failure, so no unvalidated AI output ever
- *                 reaches the child) → create a mission_attempts row → return a
- *                 compact student-facing mission view.
+ * startMission:   authenticate session → resume an existing in-progress
+ *                 (status='started', current_task_index > 0) mission_attempts
+ *                 row for this child+mission if one exists (no recompile, no
+ *                 new row — see the resume-check block below) → otherwise
+ *                 compile Mission 001 (Zod-validated; static fallback on AI
+ *                 failure, so no unvalidated AI output ever reaches the
+ *                 child) → write a mission_attempts row (reusing an untouched
+ *                 index-0 'started' row in place if one exists, else
+ *                 inserting a new one) → return a compact student-facing
+ *                 mission view.
  *
  * completeMission: idempotently transition the attempt started→completed, then
  *                 run the completion pipeline in dependency order:
@@ -64,6 +70,102 @@ export async function startMission(
   session: ChildSessionRow,
   missionId: string,
 ): Promise<StartMissionResponse> {
+  // ── Resume check ─────────────────────────────────────────────────────────
+  // Before compiling anything, check whether this child already has an
+  // in-progress (status = 'started') attempt for this exact mission that
+  // represents REAL gameplay progress — current_task_index > 0. A 'started'
+  // row gets created the instant a child opens a mission, before they've
+  // seen the briefing or tapped anything, so status='started' alone is not
+  // evidence of progress. Without the current_task_index > 0 check, a child
+  // who opens Mission 001, reads the briefing, and wanders off without
+  // tapping "Begin the Mission" would permanently lose that AI-generated
+  // briefing: their next real attempt would resume the untouched index-0 row
+  // and skip straight to the frontend's resumed=true placeholder (see
+  // storyHook below), never seeing a real briefing for this mission again.
+  // 'completed' and 'abandoned' attempts are intentionally excluded — only
+  // an in-progress 'started' attempt with current_task_index > 0 is
+  // resumable.
+  //
+  // Concurrency note: this is a check-then-insert, not a transactional claim
+  // (mission_attempts has no unique constraint on (child_profile_id,
+  // mission_id) while status='started' to upsert against, unlike the
+  // house_memberships precedent this mirrors — see POST /calibration-signals
+  // in student-session.route.ts, which also checks-then-writes but has a real
+  // unique column to fall back on). A double-click race could in theory still
+  // create two 'started' rows with real progress; the next resume picks the
+  // most recent one via started_at DESC, so the failure mode is a wasted
+  // extra row + AI compile call, not lost progress or a crash. Closing that
+  // race for good would need a partial unique index (e.g. ON mission_attempts
+  // (child_profile_id, mission_id) WHERE status = 'started') — out of scope
+  // here since it's a schema change.
+  const { data: existingAttempt, error: existingAttemptError } = await supabase
+    .from("mission_attempts")
+    .select("id, content_source, current_task_index")
+    .eq("child_profile_id", session.child_profile_id)
+    .eq("mission_id", missionId)
+    .eq("status", "started")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const hasRealProgress =
+    !!existingAttempt && (existingAttempt as { current_task_index: number }).current_task_index > 0;
+
+  // An existing 'started' row stuck at current_task_index 0 represents "the
+  // child opened the mission and nothing happened yet" — no task advanced,
+  // and (since evidence/rewards are only written on completion — see
+  // completeMission below) nothing else in the schema references this row's
+  // id yet. Rather than leaving it as a permanently orphaned row and
+  // inserting a second 'started' row for the same child+mission (which would
+  // just repeat the same problem on every subsequent abandoned open, piling
+  // up orphaned rows), we reuse it: compile fresh content as normal, then
+  // UPDATE this row in place instead of inserting a new one. This keeps
+  // "one in-progress attempt per child+mission" true in practice even though
+  // it isn't enforced by a DB constraint (see concurrency note above).
+  const staleAttemptId =
+    existingAttempt && !hasRealProgress ? (existingAttempt as { id: string }).id : null;
+
+  // Unlike every other Supabase call in this file (the insert below, the
+  // completion-claim update, evidence insert, moolah insert), a failure here
+  // intentionally fails OPEN instead of throwing MissionRuntimeError. Those
+  // other calls gate a critical state transition where throwing is the
+  // correct guarantee; this one only decides whether to resume an existing
+  // attempt or start a new one. Throwing here would block the child from
+  // starting the mission at all over a transient lookup failure. Falling
+  // through to the identity/compile/insert path below instead means the
+  // worst case is a wasted extra attempt row + AI compile call (same
+  // failure mode as the check-then-insert race noted above) — the child can
+  // still play, which is the guarantee that matters for this lookup.
+  if (existingAttemptError) {
+    log("warn", "startMission: resume lookup failed, proceeding to start a new attempt", {
+      childProfileId: session.child_profile_id,
+      missionId,
+      dbError: existingAttemptError.message,
+    });
+  }
+
+  if (hasRealProgress) {
+    const attemptId = (existingAttempt as { id: string }).id;
+    log("info", "startMission: resuming existing in-progress attempt (no AI recompile)", {
+      missionAttemptId: attemptId,
+      missionId,
+      currentTaskIndex: (existingAttempt as { current_task_index: number }).current_task_index,
+    });
+    return {
+      missionAttemptId: attemptId,
+      missionId,
+      contentSource:
+        (existingAttempt as { content_source?: "ai" | "fallback" | null }).content_source ?? "fallback",
+      // Placeholder briefing content — the original is not retrievable (see
+      // resumed field doc comment on StartMissionResponseSchema). The client
+      // skips the briefing screen on resumed=true, so these are never shown.
+      storyHook: "Welcome back! Let's pick up right where you left off.",
+      tasks: [],
+      rewardPreviewLabel: "Finish your mission to earn your rewards!",
+      resumed: true,
+    };
+  }
+
   // Identity + grade + companion drive the compiler's personalization input.
   const { data: identity } = await supabase
     .from("academy_identities")
@@ -118,25 +220,42 @@ export async function startMission(
 
   const contentSource: "ai" | "fallback" = output.usedFallback ? "fallback" : "ai";
 
-  const { data: attempt, error: insertError } = await supabase
-    .from("mission_attempts")
-    .insert({
-      child_profile_id: session.child_profile_id,
-      child_session_id: session.id,
-      academy_identity_id: session.academy_identity_id,
-      mission_id: missionId,
-      delivery_mode: "3d",
-      status: "started",
-      content_source: contentSource,
-      ai_output_envelope_id: output.envelope.id,
-      started_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
+  // staleAttemptId set above: reuse the existing index-0 'started' row in
+  // place instead of inserting a second 'started' row for the same
+  // child+mission. Note this row's id CAN already be referenced by a
+  // decision-log evidence event (page.tsx captures one on task entry, before
+  // current_task_index ever advances) — that row's content_json.taskInstanceId
+  // will no longer match this attempt's refreshed content_source/envelope
+  // after this update. Harmless today (no current consumer joins evidence
+  // back to a specific compiled task via the envelope), but worth knowing
+  // before building any feature that resolves evidence content against a
+  // mission attempt's compiled output.
+  const attemptRowFields = {
+    child_profile_id: session.child_profile_id,
+    child_session_id: session.id,
+    academy_identity_id: session.academy_identity_id,
+    mission_id: missionId,
+    delivery_mode: "3d",
+    status: "started",
+    content_source: contentSource,
+    ai_output_envelope_id: output.envelope.id,
+    started_at: new Date().toISOString(),
+  };
+
+  const { data: attempt, error: insertError } = staleAttemptId
+    ? await supabase
+        .from("mission_attempts")
+        .update(attemptRowFields)
+        .eq("id", staleAttemptId)
+        .eq("child_profile_id", session.child_profile_id)
+        .select("id")
+        .single()
+    : await supabase.from("mission_attempts").insert(attemptRowFields).select("id").single();
 
   if (insertError || !attempt) {
-    log("error", "startMission: failed to insert mission_attempts", {
+    log("error", "startMission: failed to write mission_attempts", {
       childSessionId: session.id,
+      reused: !!staleAttemptId,
       dbError: insertError?.message,
     });
     throw new MissionRuntimeError(500, "MISSION_START_ERROR", "Could not start the mission. Please try again.");
@@ -144,7 +263,7 @@ export async function startMission(
 
   const m = output.student3dMission;
 
-  log("info", "startMission: attempt created", {
+  log("info", staleAttemptId ? "startMission: reused stale index-0 attempt (fresh compile)" : "startMission: attempt created", {
     missionAttemptId: attempt.id,
     missionId,
     contentSource,
@@ -161,6 +280,7 @@ export async function startMission(
       interactionType: t.interactionType,
     })),
     rewardPreviewLabel: m.rewardPreviewLabel,
+    resumed: false,
   };
 }
 

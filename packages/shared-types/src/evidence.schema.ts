@@ -30,6 +30,8 @@ export const EvidenceCaptureTypeSchema = z.enum([
   "audio-response",      // push-to-talk response; parent must have enabled audio (ADR-027)
   "structured-replay",   // system-generated replay of mission interaction steps
   "screenshot",          // 3D scene screenshot; no face data, no webcam
+  "discrimination-check", // student chose correctly among genuine wrong options (sort/choice tasks)
+  "transfer-check",       // student applied a learned rule to a novel, unseen example
 ]);
 export type EvidenceCaptureType = z.infer<typeof EvidenceCaptureTypeSchema>;
 

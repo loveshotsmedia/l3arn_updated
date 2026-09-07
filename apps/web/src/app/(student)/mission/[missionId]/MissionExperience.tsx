@@ -6,11 +6,21 @@ import {
   startMission,
   completeMission,
   updateCalibration,
+  fetchMissionLesson,
+  updateTaskIndex,
   unlockHolding,
   type CompleteMissionInput,
 } from "../../../../lib/student-session";
 import { useWorldStore } from "@l3arn/world-engine";
-import type { StartMissionResponse, CompleteMissionResponse } from "@l3arn/shared-types";
+import type {
+  StartMissionResponse,
+  CompleteMissionResponse,
+  MissionLessonTask,
+} from "@l3arn/shared-types";
+import { SortTrayTask } from "./components/SortTrayTask";
+import { OptionListTask } from "./components/OptionListTask";
+import { HintButton } from "./components/HintButton";
+import { SpeakerButton } from "./components/SpeakerButton";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -152,304 +162,7 @@ function CompanionDialogue({ text }: { text: string }) {
   );
 }
 
-// ── Crystal & bin glyphs (instructionally relevant visuals — Mayer-compliant,
-//    static, calm; this surface is Mission mode, spec §4) ──────────────────────
-
-/** A gem crystal sitting in a bin — THE visual for "which crystal is in which bin". */
-function CrystalInBin({ crystal, bin, size = 46 }: { crystal: string; bin: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 44 44" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
-      <path d="M8 20l4 18h20l4-18" stroke={bin} strokeWidth="2.4" fill={`${bin}26`} strokeLinejoin="round" />
-      <path d="M22 4l8 10-8 10-8-10z" fill={crystal} stroke="rgba(15,23,42,0.55)" strokeWidth="1.2" strokeLinejoin="round" />
-      <path d="M18 9.5h8M22 4v20" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
-    </svg>
-  );
-}
-
-/** A standalone gem crystal (used for the sorting rows). */
-function Gem({ hex, glow, size = 54 }: { hex: string; glow: string; size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 40 40"
-      fill="none"
-      aria-hidden="true"
-      style={{ filter: `drop-shadow(0 0 8px ${glow})` }}
-    >
-      <path d="M20 3l11 13-11 21L9 16z" fill={hex} stroke="rgba(15,23,42,0.5)" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M9 16h22M20 3L14 16l6 21M20 3l6 13-6 21" stroke="rgba(255,255,255,0.3)" strokeWidth="1" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** An open bin (used inside the sort button). */
-function BinGlyph({ hex, size = 30 }: { hex: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 30 30" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
-      <path d="M4 8l3.5 18h15L26 8" stroke={hex} strokeWidth="2.2" fill={`${hex}26`} strokeLinejoin="round" />
-      <path d="M2.5 8h25" stroke={hex} strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-// ── Crystal Sorting Step (steps 0, 1, 2) ─────────────────────────────────────
-
-const CRYSTAL_STEPS = [
-  { stepIndex: 0, taskId: "task-sort-red", color: "Red", hex: "#ef4444", glow: "rgba(239,68,68,0.5)", emoji: "🔴" },
-  { stepIndex: 1, taskId: "task-sort-blue", color: "Blue", hex: "#3b82f6", glow: "rgba(59,130,246,0.5)", emoji: "🔵" },
-  { stepIndex: 2, taskId: "task-sort-green", color: "Green", hex: "#22c55e", glow: "rgba(34,197,94,0.5)", emoji: "🟢" },
-] as const;
-
-interface CrystalSortStepProps {
-  stepDef: (typeof CRYSTAL_STEPS)[number];
-  missionAttemptId: string;
-  onComplete: () => void;
-}
-
-function CrystalSortStep({ stepDef, missionAttemptId, onComplete }: CrystalSortStepProps) {
-  const [sorted, setSorted] = useState(false);
-
-  async function handleSort() {
-    setSorted(true);
-    await tryCapture(missionAttemptId, stepDef.taskId, "sequence-completion", {
-      color: stepDef.color.toLowerCase(),
-      sortedAt: Date.now(),
-    });
-    setTimeout(onComplete, 800);
-  }
-
-  return (
-    <div style={styles.stepContainer}>
-      <div style={styles.locationBadge}>Great Hall Computer Core</div>
-      <h1 style={styles.title}>Sort the {stepDef.color} Crystals</h1>
-
-      <CompanionDialogue text="Look closely — what do all the crystals in that group have in common?" />
-
-      <div style={styles.crystalRow} aria-label={`${stepDef.color} crystals`}>
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            style={{
-              opacity: sorted ? 0.3 : 1,
-              transition: "opacity 0.4s ease",
-              display: "flex",
-            }}
-          >
-            <Gem hex={stepDef.hex} glow={stepDef.glow} />
-          </span>
-        ))}
-      </div>
-
-      <button
-        style={{
-          ...styles.binBtn,
-          borderColor: sorted ? stepDef.hex : "rgba(99,102,241,0.4)",
-          boxShadow: sorted ? `0 0 20px ${stepDef.glow}` : "none",
-          background: sorted
-            ? `rgba(${stepDef.hex.replace("#", "").match(/.{2}/g)!.map((h) => parseInt(h, 16)).join(",")}, 0.2)`
-            : "rgba(30,41,59,0.95)",
-          transition: "all 0.3s ease",
-        }}
-        onClick={handleSort}
-        disabled={sorted}
-      >
-        <BinGlyph hex={stepDef.hex} />
-        <span>{sorted ? `✓ ${stepDef.color} crystals sorted!` : `${stepDef.color} Bin — click to sort`}</span>
-      </button>
-    </div>
-  );
-}
-
-// ── AI Mistake Check Step (step 3) ────────────────────────────────────────────
-
-const AI_MISTAKE_OPTIONS = [
-  { label: "A red crystal in the blue bin", correct: true, crystal: "#ef4444", bin: "#3b82f6" },
-  { label: "A blue crystal in the blue bin", correct: false, crystal: "#3b82f6", bin: "#3b82f6" },
-  { label: "A green crystal in the green bin", correct: false, crystal: "#22c55e", bin: "#22c55e" },
-  { label: "A purple crystal in the purple bin", correct: false, crystal: "#a855f7", bin: "#a855f7" },
-];
-
-interface AIMistakeStepProps {
-  missionAttemptId: string;
-  onComplete: () => void;
-  onHintUsed: () => void;
-}
-
-function AIMistakeStep({ missionAttemptId, onComplete, onHintUsed }: AIMistakeStepProps) {
-  const [attempts, setAttempts] = useState(0);
-  const [companionLine, setCompanionLine] = useState(
-    "The AI sorted most crystals correctly, but it made one mistake. Can you find it?"
-  );
-  const [selected, setSelected] = useState<number | null>(null);
-  const [correct, setCorrect] = useState(false);
-
-  async function handleChoice(idx: number) {
-    if (correct) return;
-    setSelected(idx);
-    const isCorrect = AI_MISTAKE_OPTIONS[idx].correct;
-    const newAttempts = attempts + 1;
-    setAttempts(newAttempts);
-
-    if (isCorrect) {
-      setCorrect(true);
-      setCompanionLine("You caught it! AI can make mistakes — that's why we need humans to check.");
-      await tryCapture(missionAttemptId, "task-ai-mistake-check", "ai-mistake-check", {
-        answeredCorrectly: true,
-        attempts: newAttempts,
-      });
-      setTimeout(onComplete, 1200);
-    } else {
-      onHintUsed();
-      setCompanionLine("Almost! Try looking at the colors again — which crystal doesn't match its bin?");
-    }
-  }
-
-  return (
-    <div style={styles.stepContainer}>
-      <div style={styles.locationBadge}>Great Hall Computer Core</div>
-      <h1 style={styles.title}>The AI Made a Mistake!</h1>
-      <p style={styles.narrative}>
-        The Sorting Computer sorted most crystals correctly, but it put one in the WRONG bin.
-      </p>
-
-      <CompanionDialogue text={companionLine} />
-
-      <p style={styles.questionLabel}>Which crystal is in the wrong bin?</p>
-
-      <div style={styles.optionList}>
-        {AI_MISTAKE_OPTIONS.map((opt, idx) => {
-          const isSelected = selected === idx;
-          const showCorrect = isSelected && opt.correct;
-          const showWrong = isSelected && !opt.correct;
-          return (
-            <button
-              key={idx}
-              style={{
-                ...styles.optionBtn,
-                background: showCorrect
-                  ? "rgba(34,197,94,0.2)"
-                  : showWrong
-                  ? "rgba(239,68,68,0.15)"
-                  : "rgba(30,41,59,0.95)",
-                borderColor: showCorrect
-                  ? "rgba(34,197,94,0.6)"
-                  : showWrong
-                  ? "rgba(239,68,68,0.5)"
-                  : "rgba(99,102,241,0.3)",
-                cursor: correct ? "default" : "pointer",
-              }}
-              onClick={() => handleChoice(idx)}
-              disabled={correct}
-            >
-              <span style={styles.optionLetter}>{String.fromCharCode(65 + idx)})</span>
-              <CrystalInBin crystal={opt.crystal} bin={opt.bin} />
-              <span style={{ flex: 1 }}>{opt.label}</span>
-              {showCorrect && <span style={styles.optionCheck}> ✓</span>}
-              {showWrong && <span style={styles.optionX}> ✗</span>}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── Explain Rule Step (step 4) ────────────────────────────────────────────────
-
-const EXPLAIN_OPTIONS = [
-  { label: "I looked at the color.", correct: true },
-  { label: "I looked at the size.", correct: false },
-  { label: "I guessed.", correct: false },
-  { label: "I followed the AI's instructions exactly.", correct: false },
-];
-
-interface ExplainRuleStepProps {
-  missionAttemptId: string;
-  onComplete: () => void;
-  onHintUsed: () => void;
-}
-
-function ExplainRuleStep({ missionAttemptId, onComplete, onHintUsed }: ExplainRuleStepProps) {
-  const [selected, setSelected] = useState<number | null>(null);
-  const [correct, setCorrect] = useState(false);
-  const [companionLine, setCompanionLine] = useState(
-    "Think carefully — what did you actually look at when you sorted the crystals?"
-  );
-
-  async function handleChoice(idx: number) {
-    if (correct) return;
-    setSelected(idx);
-    const isCorrect = EXPLAIN_OPTIONS[idx].correct;
-
-    if (isCorrect) {
-      setCorrect(true);
-      setCompanionLine("Exactly right! You used a clear, simple rule — that's how great sorters think.");
-      await tryCapture(missionAttemptId, "task-explain-rule", "explanation", {
-        answer: EXPLAIN_OPTIONS[idx].label,
-        correct: true,
-      });
-      setTimeout(onComplete, 1200);
-    } else {
-      onHintUsed();
-      setCompanionLine("Hmm, think again! What was the one thing that was different between the crystals?");
-    }
-  }
-
-  return (
-    <div style={styles.stepContainer}>
-      <div style={styles.locationBadge}>Great Hall Computer Core</div>
-      <h1 style={styles.title}>Explain the Sorting Rule</h1>
-      <p style={styles.narrative}>You sorted all three bins perfectly! Now tell me how you did it.</p>
-
-      <CompanionDialogue text={companionLine} />
-
-      <div style={styles.evidenceRow} aria-label="The bins you sorted">
-        <CrystalInBin crystal="#ef4444" bin="#ef4444" />
-        <CrystalInBin crystal="#3b82f6" bin="#3b82f6" />
-        <CrystalInBin crystal="#22c55e" bin="#22c55e" />
-      </div>
-
-      <p style={styles.questionLabel}>How did you know where each crystal goes?</p>
-
-      <div style={styles.optionList}>
-        {EXPLAIN_OPTIONS.map((opt, idx) => {
-          const isSelected = selected === idx;
-          const showCorrect = isSelected && opt.correct;
-          const showWrong = isSelected && !opt.correct;
-          return (
-            <button
-              key={idx}
-              style={{
-                ...styles.optionBtn,
-                background: showCorrect
-                  ? "rgba(34,197,94,0.2)"
-                  : showWrong
-                  ? "rgba(239,68,68,0.15)"
-                  : "rgba(30,41,59,0.95)",
-                borderColor: showCorrect
-                  ? "rgba(34,197,94,0.6)"
-                  : showWrong
-                  ? "rgba(239,68,68,0.5)"
-                  : "rgba(99,102,241,0.3)",
-                cursor: correct ? "default" : "pointer",
-              }}
-              onClick={() => handleChoice(idx)}
-              disabled={correct}
-            >
-              <span style={styles.optionLetter}>{String.fromCharCode(65 + idx)})</span>{" "}
-              {opt.label}
-              {showCorrect && <span style={styles.optionCheck}> ✓</span>}
-              {showWrong && <span style={styles.optionX}> ✗</span>}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── Reflection Step (step 5) ──────────────────────────────────────────────────
+// ── Reflection Step (final, ungraded — not a content-contract task type) ─────
 
 const REFLECTION_OPTIONS = [
   { label: "AI is always right.", best: false },
@@ -569,10 +282,22 @@ export function MissionExperience({ forcedMissionId, onExit }: MissionExperience
   }
 
   const [phase, setPhase] = useState<GamePhase>("loading");
-  const [stepIndex, setStepIndex] = useState(0); // 0–5 for the 6 gameplay steps
   const [mission, setMission] = useState<StartMissionResponse | null>(null);
   const [result, setResult] = useState<CompleteMissionResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>("");
+
+  // Adaptive lesson runtime state — the real content-contract task sequence
+  // fetched from GET .../lesson, and the child's current position in it.
+  const [lessonTasks, setLessonTasks] = useState<MissionLessonTask[]>([]);
+  const [taskIndex, setTaskIndex] = useState(0);
+  // Non-resumed path only: true once the background lesson fetch (kicked off
+  // right after the briefing renders) has failed. Lets "Begin the Mission"
+  // avoid handing the child a blank gameplay screen (lessonTasks would still
+  // be [] at that point) without yanking them out of the briefing the moment
+  // the failure happens in the background.
+  const [lessonFetchFailed, setLessonFetchFailed] = useState(false);
+  const [isTransferStep, setIsTransferStep] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   // Telemetry accumulators
   const [totalAttempts, setTotalAttempts] = useState(0);
@@ -589,7 +314,46 @@ export function MissionExperience({ forcedMissionId, onExit }: MissionExperience
       if (cancelled) return;
       if (outcome.ok) {
         setMission(outcome.data);
-        setPhase("briefing");
+        // Resuming an existing in-progress attempt: the original briefing
+        // content isn't retrievable (only a UUID envelope reference is
+        // persisted), so the backend returns generic placeholders and we
+        // skip straight to gameplay instead of showing a bogus briefing.
+        // Stay on "loading" until the lesson fetch below resolves so we can
+        // jump straight to "step" with lessonTasks already populated.
+        const resumed = outcome.data.resumed === true;
+        if (!resumed) setPhase("briefing");
+        void fetchMissionLesson(missionId, outcome.data.missionAttemptId).then((lessonOutcome) => {
+          if (cancelled) return;
+          if (!lessonOutcome.ok) {
+            // On the resumed path, phase is still "loading" at this point
+            // (we deliberately didn't set it to "briefing" above) — if we
+            // silently returned here like the non-resumed path does, the
+            // child would be stuck on "Preparing your mission…" forever
+            // with no retry route. The non-resumed path doesn't have this
+            // problem because phase was already set to "briefing"
+            // synchronously before this fetch was kicked off.
+            if (resumed) {
+              setErrorMessage(lessonOutcome.message);
+              setPhase("error");
+              return;
+            }
+            // Non-resumed: the child may still be reading the briefing
+            // screen (built entirely from the earlier startMission
+            // response, so it's unaffected by this failure) — don't yank
+            // them into the error screen mid-read. Stash the failure so
+            // "Begin the Mission" can guard against handing them a blank
+            // gameplay screen (lessonTasks is still [] here, and the
+            // gameplay-step render requires lessonTasks.length > 0) and
+            // route to the same error phase only if/when they actually
+            // try to proceed.
+            setErrorMessage(lessonOutcome.message);
+            setLessonFetchFailed(true);
+            return;
+          }
+          setLessonTasks(lessonOutcome.data.tasks);
+          setTaskIndex(lessonOutcome.data.resumeFromTaskIndex);
+          if (resumed) setPhase("step");
+        });
         return;
       }
       if (outcome.error === "SESSION_TOKEN_MISSING" && process.env.NODE_ENV !== "production") {
@@ -605,43 +369,23 @@ export function MissionExperience({ forcedMissionId, onExit }: MissionExperience
     };
   }, [missionId]);
 
-  // ── Decision log on step entry ───────────────────────────────────────────────
-  const STEP_TASK_IDS = [
-    "task-sort-red",
-    "task-sort-blue",
-    "task-sort-green",
-    "task-ai-mistake-check",
-    "task-explain-rule",
-    "task-reflection",
-  ];
-
+  // ── Decision log on task entry ───────────────────────────────────────────────
+  // Driven by taskIndex/lessonTasks (the real content-contract sequence) rather
+  // than the old hardcoded stepIndex — logs the real taskInstanceId for each
+  // content-contract task the child enters. No entry is logged once taskIndex
+  // reaches the end of lessonTasks (the final ReflectionStep is not a
+  // content-contract task and has its own "reflection" evidence capture).
   useEffect(() => {
-    if (phase !== "step" || !mission) return;
+    if (phase !== "step" || !mission || lessonTasks.length === 0) return;
+    const currentTask = lessonTasks[taskIndex];
+    if (!currentTask) return;
     void tryCapture(mission.missionAttemptId, "task-decision-log", "decision-log", {
-      stepId: STEP_TASK_IDS[stepIndex] ?? `step-${stepIndex}`,
-      stepIndex,
+      taskInstanceId: currentTask.taskInstanceId,
+      taskIndex,
       enteredAt: Date.now(),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, stepIndex]);
-
-  // ── Step advancement ─────────────────────────────────────────────────────────
-  const advanceStep = useCallback(() => {
-    setStepIndex((prev) => {
-      const next = prev + 1;
-      if (next > 5) return prev; // guard
-      return next;
-    });
-  }, []);
-
-  const handleHintUsed = useCallback(() => {
-    setTotalAttempts((p) => p + 1);
-    setHintsUsed((p) => p + 1);
-  }, []);
-
-  const handleWrongAnswer = useCallback(() => {
-    setTotalAttempts((p) => p + 1);
-  }, []);
+  }, [phase, taskIndex, lessonTasks, mission]);
 
   // ── Final completion ─────────────────────────────────────────────────────────
   const handleComplete = useCallback(async () => {
@@ -650,7 +394,7 @@ export function MissionExperience({ forcedMissionId, onExit }: MissionExperience
 
     // Structured replay before completing
     await tryCapture(mission.missionAttemptId, "task-structured-replay", "structured-replay", {
-      totalSteps: 6,
+      totalSteps: lessonTasks.length + 1, // + 1 for the final ReflectionStep
       totalAttempts,
       hintsUsed,
       completedAt: Date.now(),
@@ -681,14 +425,7 @@ export function MissionExperience({ forcedMissionId, onExit }: MissionExperience
       setErrorMessage(outcome.message);
       setPhase("error");
     }
-  }, [mission, totalAttempts, hintsUsed, missionId]);
-
-  // When stepIndex advances past 5, kick off completion
-  useEffect(() => {
-    if (phase === "step" && stepIndex > 5) {
-      void handleComplete();
-    }
-  }, [phase, stepIndex, handleComplete]);
+  }, [mission, lessonTasks.length, totalAttempts, hintsUsed, missionId]);
 
   // ── Render: Loading / Completing ─────────────────────────────────────────────
   if (phase === "loading" || phase === "completing") {
@@ -779,6 +516,10 @@ export function MissionExperience({ forcedMissionId, onExit }: MissionExperience
   // ── Render: Briefing ──────────────────────────────────────────────────────────
   if (phase === "briefing") {
     if (!mission) return null;
+    // Neither failed nor populated yet == the background lesson fetch is
+    // still in flight. Missions always ship with at least one task, so a
+    // non-empty lessonTasks reliably means the fetch already succeeded.
+    const lessonPending = !lessonFetchFailed && lessonTasks.length === 0;
     return (
       <div style={styles.container}>
         <div style={styles.card}>
@@ -813,88 +554,128 @@ export function MissionExperience({ forcedMissionId, onExit }: MissionExperience
           </div>
 
           <button
-            style={styles.beginBtn}
+            style={{
+              ...styles.beginBtn,
+              ...(lessonPending ? { opacity: 0.6, cursor: "wait" } : {}),
+            }}
+            disabled={lessonPending}
             onClick={() => {
-              setStepIndex(0);
+              // The lesson fetch already failed in the background — proceeding
+              // would flip phase to "step" with lessonTasks still [], which
+              // fails the gameplay-step render guard and falls through to a
+              // blank screen. Route to the same error phase/message used
+              // elsewhere in this file instead.
+              if (lessonFetchFailed) {
+                setPhase("error");
+                return;
+              }
               setPhase("step");
             }}
           >
-            Begin the Mission
+            {lessonPending ? "Preparing your mission…" : "Begin the Mission"}
           </button>
         </div>
       </div>
     );
   }
 
-  // ── Render: Gameplay steps ────────────────────────────────────────────────────
-  if (phase === "step" && mission) {
+  // ── Render: Gameplay steps (content-contract tasks) ─────────────────────────
+  if (phase === "step" && mission && lessonTasks.length > 0) {
     const missionAttemptId = mission.missionAttemptId;
+    const currentTask = lessonTasks[taskIndex];
 
-    // Steps 0, 1, 2 — Crystal sorting
-    if (stepIndex <= 2) {
-      const crystalStep = CRYSTAL_STEPS[stepIndex];
+    if (currentTask) {
+      const handleTaskCorrect = async () => {
+        // ai-mistake-check keeps its own existing, more specific evidence
+        // type (already valid pre-sub-project-2) rather than being folded
+        // into the new generic discrimination-check.
+        const captureType =
+          currentTask.skeleton.taskType === "apply-to-new"
+            ? "transfer-check"
+            : currentTask.skeleton.taskType === "ai-mistake-check"
+              ? "ai-mistake-check"
+              : "discrimination-check";
+        await tryCapture(missionAttemptId, currentTask.taskInstanceId, captureType, {
+          taskType: currentTask.skeleton.taskType,
+          correct: true,
+        });
+        const next = taskIndex + 1;
+        setTaskIndex(next);
+        void updateTaskIndex(missionAttemptId, next);
+      };
+      const handleTaskWrong = () => {
+        setTotalAttempts((p) => p + 1);
+      };
+
       return (
         <div style={styles.container}>
           <div style={styles.card}>
-            {/* Progress indicator */}
-            <ProgressBar current={stepIndex} total={6} />
-            <CrystalSortStep
-              key={crystalStep.taskId}
-              stepDef={crystalStep}
-              missionAttemptId={missionAttemptId}
-              onComplete={advanceStep}
+            <ProgressBar current={taskIndex} total={lessonTasks.length + 1} />
+            <button style={styles.exitBtn} onClick={() => setShowExitConfirm(true)}>
+              Exit mission
+            </button>
+            {showExitConfirm && (
+              <div style={styles.exitConfirmBox}>
+                <p>Leave this mission? Your progress on this task is saved.</p>
+                <button
+                  onClick={async () => {
+                    await updateTaskIndex(missionAttemptId, taskIndex);
+                    router.push("/student/academy");
+                  }}
+                >
+                  Leave
+                </button>
+                <button onClick={() => setShowExitConfirm(false)}>Stay</button>
+              </div>
+            )}
+            <SpeakerButton text={currentTask.fill.storyFlavor} />
+            {currentTask.skeleton.taskType === "sort-categorize" && (
+              <SortTrayTask
+                key={currentTask.taskInstanceId}
+                skeleton={currentTask.skeleton}
+                fill={currentTask.fill}
+                onCorrect={handleTaskCorrect}
+                onWrong={handleTaskWrong}
+              />
+            )}
+            {currentTask.skeleton.taskType === "apply-to-new" && (
+              <SortTrayTask
+                key={currentTask.taskInstanceId}
+                skeleton={currentTask.skeleton}
+                fill={currentTask.fill}
+                onCorrect={handleTaskCorrect}
+                onWrong={handleTaskWrong}
+                isTransferStep
+              />
+            )}
+            {currentTask.skeleton.taskType === "ai-mistake-check" && (
+              <OptionListTask
+                key={currentTask.taskInstanceId}
+                skeleton={currentTask.skeleton}
+                fill={currentTask.fill}
+                onCorrect={handleTaskCorrect}
+                onWrong={handleTaskWrong}
+              />
+            )}
+            <HintButton
+              hintLadder={currentTask.skeleton.hintLadder}
+              onEscalate={() => setHintsUsed((p) => p + 1)}
             />
           </div>
         </div>
       );
     }
 
-    // Step 3 — AI Mistake Check
-    if (stepIndex === 3) {
-      return (
-        <div style={styles.container}>
-          <div style={styles.card}>
-            <ProgressBar current={stepIndex} total={6} />
-            <AIMistakeStep
-              missionAttemptId={missionAttemptId}
-              onComplete={advanceStep}
-              onHintUsed={handleHintUsed}
-            />
-          </div>
+    // All content-contract tasks done — fall through to the existing
+    // ReflectionStep (unchanged, kept exactly as today).
+    return (
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <ProgressBar current={lessonTasks.length} total={lessonTasks.length + 1} />
+          <ReflectionStep missionAttemptId={missionAttemptId} onComplete={() => void handleComplete()} />
         </div>
-      );
-    }
-
-    // Step 4 — Explain Rule
-    if (stepIndex === 4) {
-      return (
-        <div style={styles.container}>
-          <div style={styles.card}>
-            <ProgressBar current={stepIndex} total={6} />
-            <ExplainRuleStep
-              missionAttemptId={missionAttemptId}
-              onComplete={advanceStep}
-              onHintUsed={handleWrongAnswer}
-            />
-          </div>
-        </div>
-      );
-    }
-
-    // Step 5 — Reflection
-    if (stepIndex === 5) {
-      return (
-        <div style={styles.container}>
-          <div style={styles.card}>
-            <ProgressBar current={stepIndex} total={6} />
-            <ReflectionStep
-              missionAttemptId={missionAttemptId}
-              onComplete={() => setStepIndex(6)} // triggers completion useEffect
-            />
-          </div>
-        </div>
-      );
-    }
+      </div>
+    );
   }
 
   return null;
@@ -1106,6 +887,25 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     boxShadow: "0 4px 16px rgba(99, 102, 241, 0.35)",
   },
+  exitBtn: {
+    alignSelf: "flex-end",
+    padding: "0.5rem 1rem",
+    minHeight: "52px",
+    borderRadius: "8px",
+    border: "1px solid rgba(148,163,184,0.3)",
+    background: "transparent",
+    color: "#94a3b8",
+    fontSize: "0.85rem",
+    cursor: "pointer",
+    marginBottom: "1rem",
+  },
+  exitConfirmBox: {
+    padding: "1rem",
+    borderRadius: "10px",
+    background: "rgba(239,68,68,0.08)",
+    border: "1px solid rgba(239,68,68,0.25)",
+    marginBottom: "1rem",
+  },
   // Companion dialogue panel
   companionPanel: {
     display: "flex",
@@ -1145,36 +945,9 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
     fontStyle: "italic",
   },
-  // Crystal sort step
   stepContainer: {
     display: "flex",
     flexDirection: "column" as const,
-  },
-  crystalRow: {
-    display: "flex",
-    gap: "1rem",
-    justifyContent: "center",
-    marginBottom: "1.5rem",
-    padding: "1rem",
-  },
-  crystalEmoji: {
-    fontSize: "2.5rem",
-  },
-  binBtn: {
-    width: "100%",
-    padding: "1.1rem 1.25rem",
-    borderRadius: "12px",
-    border: "2px solid",
-    background: "rgba(30,41,59,0.95)",
-    color: "#f1f5f9",
-    fontSize: "1rem",
-    fontWeight: 700,
-    cursor: "pointer",
-    marginBottom: "0",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "0.75rem",
   },
   // Multiple choice
   questionLabel: {

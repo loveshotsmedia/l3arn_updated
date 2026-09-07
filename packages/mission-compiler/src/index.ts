@@ -107,3 +107,6 @@ export {
   AI_MISTAKE_SHAPE_SIDES_SKELETON,
   AI_MISTAKE_SHAPE_SIDES_SKELETON_FIXTURE_ID,
 } from "./curriculum/skeletons/ai-mistake-shape-sides.skeleton";
+
+// ── Mission 001 adaptive lesson sequence (sub-project 2) ──────────────────────
+export { MISSION_001_LESSON_SEQUENCE } from "./curriculum/mission-001-lesson-sequence";

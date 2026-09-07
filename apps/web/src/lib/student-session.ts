@@ -19,6 +19,7 @@ import type {
   SelectableHouse,
   StartMissionResponse,
   CompleteMissionResponse,
+  MissionLessonResponse,
   GetHoldingsResponse,
   UnlockHoldingResponse,
 } from "@l3arn/shared-types";
@@ -283,7 +284,9 @@ async function authedGet<T>(path: string): Promise<ApiOutcome<T>> {
 
   try {
     const res = await fetch(`${base}${path}`, {
+      method: "GET",
       headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
     });
     if (!res.ok) {
       const { error, message } = await parseError(res);
@@ -321,6 +324,24 @@ export function unlockHolding(
 /** Start a mission: backend compiles (validated/fallback) + creates the attempt. */
 export function startMission(missionId = "mission-001"): Promise<ApiOutcome<StartMissionResponse>> {
   return authedPost<StartMissionResponse>("/api/student/mission/start", { missionId });
+}
+
+/** Fetch the adaptive lesson task sequence for a mission attempt. */
+export function fetchMissionLesson(
+  missionId: string,
+  missionAttemptId: string,
+): Promise<ApiOutcome<MissionLessonResponse>> {
+  return authedGet<MissionLessonResponse>(
+    `/api/student/mission/${missionId}/lesson?missionAttemptId=${encodeURIComponent(missionAttemptId)}`,
+  );
+}
+
+/** Persist which task the child was on, for resume-on-re-entry. */
+export function updateTaskIndex(
+  missionAttemptId: string,
+  taskIndex: number,
+): Promise<ApiOutcome<{ ok: true }>> {
+  return authedPost<{ ok: true }>("/api/student/mission/task-index", { missionAttemptId, taskIndex });
 }
 
 export interface CompleteMissionInput {
