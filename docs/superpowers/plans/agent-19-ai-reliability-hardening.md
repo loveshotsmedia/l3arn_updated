@@ -42,8 +42,10 @@ Read first, in this order:
 
 | Fact | Location | Status |
 |---|---|---|
-| `messages.create` called with **no** `AbortSignal` and no per-attempt timeout | `packages/mission-compiler/src/compiler.ts:221` | open |
-| Anthropic client constructed with only `apiKey` — the SDK default `maxRetries` (2) is in effect | `packages/mission-compiler/src/compiler.ts:185-187` | open |
+| **CORRECTED 2026-09-07** — the two rows this replaces were read from a stale checkout, not `main`. On `main` the Anthropic call **already has a per-attempt timeout**: `DEFAULT_AI_TIMEOUT_MS = 30_000`, env-tunable via `MISSION_AI_TIMEOUT_MS`, applied to `compile()` (`timeout:` on `messages.create`) and to `compileStart()` (explicit `AbortController` around a streamed request). Commits `e2c7768`, `22e0599`. | `packages/mission-compiler/src/compiler.ts:124-129, 349, 392-395, 544, 569-573` | **done** — the only open question is whether 30 s is the *right* value, which is exactly what Task 1's measurement decides |
+| **CORRECTED 2026-09-07** — `maxRetries: 0` is **already set** on both call sites, with the reason in a comment. | `packages/mission-compiler/src/compiler.ts:393-396, 595-597` | **done** |
+| Non-retryable short-circuit: a timeout/abort goes straight to the fallback instead of burning all 3 attempts (validation failures still retry 3×) | `packages/mission-compiler/src/retry/retry-engine.ts:52, 85` | done (`e2c7768`) |
+| The live child path is `compileStart()` — streaming, `MISSION_START_MODEL` (measured 5.6–7 s on haiku, 13.6 s on sonnet in `22e0599`). The ~66 s figure in `CODEX_HANDOFF.md` §3 is the **full six-section `compile()`** behind `/api/missions` (`mission.route.ts:116`), which `apps/web` never calls. | `services/ai-workers/src/missions/mission-runtime.ts:101`, `services/ai-workers/src/routes/mission.route.ts:116` | **Task 1's measurement must record the two paths separately**; whether `/api/missions` survives at all is founder decision §M-9 in `L3ARN_COMPLETE_BUILD_ASSESSMENT.md` |
 | Retry loop has **no delay** between attempts; the gap is flagged inline as an open question | `packages/mission-compiler/src/retry/retry-engine.ts:23-26`, loop at `:53` | open |
 | A **second** retry implementation exists — shared by intent, separate in fact | `packages/safety/src/retry/ai-retry.helper.ts` (`withAIRetry`) | unresolved duplication |
 | `max_tokens: 16000` with a documented reason (4096 truncated the `tool_use` JSON) | `packages/mission-compiler/src/compiler.ts:224-227` | leave alone |
