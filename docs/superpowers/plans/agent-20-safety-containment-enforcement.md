@@ -6,7 +6,11 @@ _Plan recreated 2026-09-07 from `docs/CODEX_HANDOFF.md` §15 + `docs/AI_HARDENIN
 
 ## Clearance
 
-Agent 20 is cleared to begin **after Agent 19 is complete and verified**.
+> **HELD 2026-09-07 (founder directive). Agent 20 is NOT cleared to implement.**
+>
+> Agents 19–23 are folded into the **Astra6 master build dependency graph** (`goal/complete-l3arn`) and none begins until `docs/L3ARN_COMPLETE_BUILD_PLAN.md` exists and has been reviewed. Agent 20 is safety-critical and must appear in that graph as a hard dependency of Agent 21 and of the Agent 23 beta gate — it cannot be scheduled as optional or parallel work.
+
+Within the wave's own ordering, Agent 20 runs **after Agent 19 is complete and verified**.
 
 This agent turns safety containment from **observability** into **enforcement**. Today an S3/S4 event is logged to stdout, `audit_logs` and `safety_escalations`, and the containment actions are recorded but **not executed**. Agent 20 makes them execute.
 
