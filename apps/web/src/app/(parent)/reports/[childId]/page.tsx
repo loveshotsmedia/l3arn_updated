@@ -746,11 +746,18 @@ function VisibilitySettingsSection({ childInfo }: { childInfo: ChildInfo }) {
           >
             {visibilityTierLabel(tier as VisibilityTier)}
           </span>
+          {/* Agent 21 criterion A0: this report is not yet bound to a parent-safe
+              safety-notice data source, so it must not claim safety-flagged events
+              are surfaced. Every section below gates on `!== "summary"`, so
+              safety-override renders the same full detail as "full" today. The
+              safety-flag sentence may return only once notice data is actually
+              fetched and rendered here — never by reading founder-only
+              safety_escalations. See docs/superpowers/plans/agent-21-*.md. */}
           <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
             {tier === "summary"
               ? "Raw signals and evidence highlights are hidden."
               : tier === "safety-override"
-              ? "Only safety-flagged events are surfaced."
+              ? "Full detail shown while Safety Override is active."
               : "Full detail shown."}
           </span>
         </div>
