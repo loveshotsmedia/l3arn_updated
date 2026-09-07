@@ -6,6 +6,8 @@ _Plan recreated 2026-09-07 from `docs/CODEX_HANDOFF.md` §15 + `docs/AI_HARDENIN
 
 ## Clearance
 
+> **CONFIRMED PROCESS-ONLY 2026-09-07 (founder directive).** Agents 19–23 are folded into the Astra6 master build dependency graph and held pending `docs/L3ARN_COMPLETE_BUILD_PLAN.md` — **Agent 22 is the stated exception and remains cleared**, because it writes no application code. It stays parallel-safe in the master graph.
+
 Agent 22 is cleared to begin **immediately and may run in parallel** with Agents 19–21. `docs/CODEX_HANDOFF.md` §25 lists it as the one item in this wave with no ordering dependency.
 
 **This agent is docs and process only.** §15 states it plainly: "Docs/process only." Agent 22 writes **no application code**, adds **no** migration, adds **no** UI, and creates **no** table. If this agent finds itself editing anything under `apps/`, `services/` or `packages/`, it has left its mandate.

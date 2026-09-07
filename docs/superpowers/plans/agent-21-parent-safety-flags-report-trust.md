@@ -6,7 +6,13 @@ _Plan recreated 2026-09-07 from `docs/CODEX_HANDOFF.md` §15 + `docs/AI_HARDENIN
 
 ## Clearance
 
-Agent 21 is cleared to begin **after Agent 20 is complete and verified**. Agent 21 surfaces to parents the events Agent 20 makes real; running it first would build a UI over behaviour that does not yet exist.
+> **HELD 2026-09-07 (founder directive). Agent 21 is NOT cleared to implement.**
+>
+> Agents 19–23 are folded into the **Astra6 master build dependency graph** (`goal/complete-l3arn`) and none begins until `docs/L3ARN_COMPLETE_BUILD_PLAN.md` exists and has been reviewed.
+>
+> **One exception, and it is a live defect, not new work:** the misleading copy identified in *Required Acceptance Criterion A0* below is on production **now**, telling parents something untrue. Removing or replacing that one string does not depend on Agent 20, Agent 21, or the build plan. It may be done immediately as an isolated copy fix on founder approval; everything else in this plan waits.
+
+Agent 21 is otherwise sequenced **after Agent 20 is complete and verified**. Agent 21 surfaces to parents the events Agent 20 makes real; running it first would build a UI over behaviour that does not yet exist.
 
 This agent closes the trust gap in the parent report: the First Learning Map currently shows mastery, calibration, rewards and companion progress, but a parent has **no way to learn that a safety event occurred**. It also fixes a subtler trust problem — when the AI validation path falls back, the parent is currently told nothing, and silence in a safety-adjacent product reads as concealment.
 
@@ -17,6 +23,28 @@ Read first, in this order:
 - `apps/web/src/app/(parent)/reports/[childId]/page.tsx` — read the whole file, including the header doc comment
 - `docs/ADR/ADR-000-index.md` — ADR-046, ADR-047 (amended), ADR-048
 - `docs/agent_operating_rules.md`
+
+---
+
+## Required Acceptance Criterion A0 — the report must not claim a surface it does not have
+
+_Added 2026-09-07 (founder directive). This is a **required acceptance criterion**, not a nice-to-have, and it is tracked as a live blocker._
+
+**The rule:** the parent report must **never** claim that safety-flagged events are surfaced unless the page is actually bound to the parent-safe safety-notice data source.
+
+**The current violation.** `apps/web/src/app/(parent)/reports/[childId]/page.tsx:752-753` renders, for the `safety-override` visibility tier:
+
+> "Only safety-flagged events are surfaced."
+
+Nothing in that file ever fetches a safety flag — `git grep -n "safety" -- 'apps/web/src/app/(parent)/reports/*'` returns only the tier type declaration (`:101`, `:228-229`) and this label copy. The page makes a factual claim to a parent about safety visibility that the code does not honour. In a child-safety product that is worse than showing nothing: a parent reading it concludes they are being shown safety events, and their silence therefore means none occurred.
+
+**Required sequence:**
+
+1. **Until the notice surface exists — remove or replace the misleading copy.** Replace it with language that describes what the tier actually does today and makes no claim about safety flags, or remove the claim entirely. Do not soften it and leave the promise intact; a hedge is still a claim.
+2. **After Agent 21 lands — the copy may return, but only if** the parent-safe safety-notice data is genuinely fetched and rendered on that page. Binding to the data source is the precondition for the sentence existing at all.
+3. **Never satisfy this by pointing the page at `safety_escalations`.** That table is founder-only (`docs/CODEX_HANDOFF.md` §24: "Do not expose founder-only safety tables directly to parents"). The correct source is the separate parent-facing notice surface built in Task 1 — reading the founder table would resolve the copy/data mismatch by creating a far worse privacy breach.
+
+**Verification:** load the report as a real parent on the `safety-override` tier and read the rendered text. Confirm that every safety-visibility claim on screen corresponds to data actually fetched on that request. Verify by observing the page, not by reading the component.
 
 ---
 
@@ -139,6 +167,7 @@ Put the drafts in one module (e.g. `apps/web/src/app/(parent)/reports/[childId]/
 
 ## Definition of Done
 
+- [ ] **A0: no safety-visibility claim appears in the report unless that request actually fetched parent-safe notice data** — misleading `safety-override` copy removed or replaced in the interim, and restored only once bound to the real data source
 - [ ] Parent-facing notice surface exists, separate from `safety_escalations`, with RLS enabled + forced
 - [ ] Schema and RLS docs updated in the same commit
 - [ ] Notices written from both sources (containment, validation fallback) without ever blocking the child session

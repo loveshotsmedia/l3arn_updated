@@ -6,6 +6,8 @@ _Plan recreated 2026-09-07 from `docs/CODEX_HANDOFF.md` §15 + `docs/AI_HARDENIN
 
 ## Clearance
 
+> **CONFIRMED FINAL GATE 2026-09-07 (founder directive).** Agents 19–23 are folded into the Astra6 master build dependency graph (`goal/complete-l3arn`). **Agent 23 stays the final beta gate** and now gates the whole Astra6 build, not just Agents 19–21 — every build-plan track that touches the child path, the AI path, the permission path or the parent report must be complete and verified before this gate runs. It is the last node in the graph.
+
 Agent 23 **runs last**. `docs/CODEX_HANDOFF.md` §15: "Must not declare beta ready until Agents 19–21 are complete and verified."
 
 Agent 23 builds and executes the gate that decides whether L3ARN opens to real families. §26 defines the current milestone as exactly this: "Personally validate the live Hero Slice, harden safety/reliability, then determine whether L3ARN is ready for the first 25-family Inner Circle."
@@ -52,7 +54,7 @@ Known blockers already on record:
 - All four AI-hardening items in `docs/AI_HARDENING_BACKLOG.md` are unchecked (Agents 19 and 21 own them).
 - Safety containment is **log-only**, not enforced — `packages/safety/src/kill-switch/supabase-safety-containment.ts:16-18`. Agent 20 owns it.
 - Parent report surfaces **no** safety flags — `apps/web/src/app/(parent)/reports/[childId]/page.tsx` has no safety query. Agent 21 owns it.
-- `RAILWAY_AI_WORKERS_URL` is not set in Vercel, so Mission Control's Safety Status link falls back to a placeholder — `apps/web/src/app/(admin)/mission-control/page.tsx:328`, and the page renders an explicit "[RAILWAY_AI_WORKERS_URL not set — using placeholder URL]" warning at `:770-772`. Also filed as **OQ-A11-005** in `docs/OPEN_QUESTIONS.md:452`. **This one is an env-var setting, not a code change** — it is the cheapest open blocker on the list and should not still be open at the gate.
+- `RAILWAY_AI_WORKERS_URL` — **status UNVERIFIED, treat the documentation as potentially stale.** `docs/AI_HARDENING_BACKLOG.md` and **OQ-A11-005** (`docs/OPEN_QUESTIONS.md:452`) both say it is unset in Vercel, and the code carries a placeholder fallback (`apps/web/src/app/(admin)/mission-control/page.tsx:328`) plus a "[RAILWAY_AI_WORKERS_URL not set — using placeholder URL]" warning at `:770-772`. **Those documents are the claim, not evidence.** A fresh check attempted 2026-09-07 could not settle it: the Vercel CLI is authenticated as `cameron-2137` but the L3ARN project is not visible under any accessible scope (`dartixai`, `fleetiq-app`), so neither "set" nor "unset" is confirmed. **Do not carry this forward as a blocker on the strength of the backlog text.** Resolve it with one of: `vercel env ls` from the account that owns the project, the Vercel dashboard, or loading Mission Control as the founder and observing whether the `:770-772` warning renders. If it is already set, close OQ-A11-005 and correct the backlog.
 - No world-write enforcement point exists (§23), so `freeze-world-state` can only ever be interface-ready at this gate.
 - `moderation_events` are not fully persisted in the intended mature form (§23).
 - Production real-AI generation runs ~66s (§3).
@@ -184,7 +186,7 @@ Agent 23 is itself verified by:
 - [ ] Agents 19–21 independently re-verified, not accepted on self-report
 - [ ] Founder manual walkthrough confirmed complete with the five §16 answers recorded
 - [ ] Live RLS / cross-parent isolation verified with real accounts
-- [ ] `RAILWAY_AI_WORKERS_URL` set in Vercel and the placeholder warning gone
+- [ ] `RAILWAY_AI_WORKERS_URL` status established by a **fresh** check (dashboard, `vercel env ls` from the owning account, or the founder-side Mission Control warning) — set if it is not, and OQ-A11-005 plus the backlog corrected if it already was
 - [ ] Full 16-step Hero Slice verification re-run on production **post-hardening**
 - [ ] Inbound safety-concern channel defined with a named human recipient
 - [ ] `docs/BETA_READINESS_VERDICT.md` written with a clear READY / NOT READY and per-item recommendations
