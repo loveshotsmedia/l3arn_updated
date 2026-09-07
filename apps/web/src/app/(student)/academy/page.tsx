@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { WorldCanvas, useWorldStore } from "@l3arn/world-engine";
 import type { SceneKey, WorldEvent } from "@l3arn/world-engine";
-import { getVerifiedIdentity } from "../../../lib/student-session";
+import { getVerifiedIdentity, getHoldings } from "../../../lib/student-session";
 import { MissionOverlay } from "./MissionOverlay";
 
 type RealHouse = "Valkryn" | "Lyrion" | "Novari" | "Cytrex";
@@ -26,6 +26,16 @@ export default function AcademyPage() {
     if (verified) {
       setDisplayName(verified.displayName);
       setHouse(asRealHouse(verified.house));
+      // Hydrate mastery-gated holdings so the Great Hall renders any buildings
+      // this student has already unlocked (spec §3.4). Must run BEFORE the early
+      // return below, or verified (real) users would never load their holdings.
+      getHoldings().then((result) => {
+        if (result.ok) {
+          useWorldStore
+            .getState()
+            .setUnlockedHoldingIds(result.data.holdings.map((h) => h.holdingId));
+        }
+      });
       return;
     }
     if (process.env.NODE_ENV !== "production") {
@@ -65,12 +75,18 @@ export default function AcademyPage() {
 
   return (
     <div style={styles.canvasContainer}>
-      <WorldCanvas
-        scene={currentScene}
-        onEvent={handleWorldEvent}
-        displayName={displayName}
-        house={house}
-      />
+      {/* Absolute-inset wrapper gives the R3F canvas a definite box from first
+          paint. Without it, R3F's initial measurement can race the flex layout
+          and freeze the canvas at the 150px intrinsic default (the
+          long-standing "strip" bug seen in every screenshot until now). */}
+      <div style={styles.canvasFill}>
+        <WorldCanvas
+          scene={currentScene}
+          onEvent={handleWorldEvent}
+          displayName={displayName}
+          house={house}
+        />
+      </div>
       <div style={styles.hudOverlay}>
         <div style={styles.hudHint}>
           Click anywhere to move · Click the Sorting Computer to begin
@@ -88,6 +104,10 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     position: "relative",
     height: "calc(100vh - 52px)",
+  },
+  canvasFill: {
+    position: "absolute",
+    inset: 0,
   },
   hudOverlay: {
     position: "absolute",

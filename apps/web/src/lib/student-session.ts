@@ -20,6 +20,8 @@ import type {
   StartMissionResponse,
   CompleteMissionResponse,
   MissionLessonResponse,
+  GetHoldingsResponse,
+  UnlockHoldingResponse,
 } from "@l3arn/shared-types";
 
 const TOKEN_KEY = "l3arn_session_token";
@@ -299,6 +301,24 @@ async function authedGet<T>(path: string): Promise<ApiOutcome<T>> {
       message: "Could not reach the Academy. Check your connection and try again.",
     };
   }
+}
+
+// ── World holdings (mastery-gated buildings, spec §3.4) ────────────────────────
+
+/** Fetch every holding (mastery-gated building) the student has unlocked. */
+export function getHoldings(): Promise<ApiOutcome<GetHoldingsResponse>> {
+  return authedGet<GetHoldingsResponse>("/api/student/session/holdings");
+}
+
+/** Unlock a holding. Best-effort — callers should treat failure as non-fatal (the mission still counts as complete). */
+export function unlockHolding(
+  holdingId: string,
+  unlockedByMissionId: string,
+): Promise<ApiOutcome<UnlockHoldingResponse>> {
+  return authedPost<UnlockHoldingResponse>("/api/student/session/holdings", {
+    holdingId,
+    unlockedByMissionId,
+  });
 }
 
 /** Start a mission: backend compiles (validated/fallback) + creates the attempt. */

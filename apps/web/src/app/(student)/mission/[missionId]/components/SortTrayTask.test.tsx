@@ -1,7 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { SortTrayTask, COLOR_HEX, COLOR_EMOJI, FALLBACK_COLOR_HEX, FALLBACK_COLOR_EMOJI } from "./SortTrayTask";
+import { SortTrayTask, COLOR_HEX, FALLBACK_COLOR_HEX } from "./SortTrayTask";
 import type { LessonTaskSkeleton, SkeletonFill } from "@l3arn/shared-types";
+
+/** The fill color of the faceted <Gem> sprite rendered inside a crystal button. */
+function gemFillOf(button: HTMLElement): string | null {
+  const gem = button.querySelector('[data-testid="crystal-gem"] svg path');
+  return gem ? gem.getAttribute("fill") : null;
+}
 
 // jsdom's CSSOM canonicalizes hex colors to `rgb(r, g, b)` in the serialized
 // style attribute, so the raw-attribute assertions below compare against
@@ -177,9 +183,9 @@ describe("SortTrayTask", () => {
 
   // Regression: real apply-to-new-color transfer step (see orangeTransferFill
   // comment above). The orange transfer crystal must render with its real,
-  // explicit color/emoji — not the generic fallback — now that COLOR_HEX and
-  // COLOR_EMOJI both carry an "orange" entry.
-  it("renders the real orange transfer crystal with its explicit color and emoji, not the generic fallback", () => {
+  // explicit color — on the button chrome AND on the gem sprite's fill — not
+  // the generic fallback, now that COLOR_HEX carries an "orange" entry.
+  it("renders the real orange transfer crystal with its explicit color on both chrome and gem, not the generic fallback", () => {
     render(<SortTrayTask skeleton={skeleton} fill={orangeTransferFill} onCorrect={vi.fn()} onWrong={vi.fn()} isTransferStep />);
     const orangeCrystal = screen.getByLabelText("A brand-new orange crystal.");
     expect(orangeCrystal).toBeInTheDocument();
@@ -191,16 +197,16 @@ describe("SortTrayTask", () => {
     const styleAttr = orangeCrystal.getAttribute("style") ?? "";
     expect(styleAttr).toContain(hexToRgb(COLOR_HEX.orange));
     expect(styleAttr).not.toContain("undefined");
-    // The distinct explicit orange emoji, not the generic fallback mark.
-    expect(screen.getByText(COLOR_EMOJI.orange)).toBeInTheDocument();
-    expect(screen.queryByText(FALLBACK_COLOR_EMOJI)).not.toBeInTheDocument();
+    // The gem sprite is filled with the explicit orange, not the fallback grey.
+    expect(gemFillOf(orangeCrystal)).toBe(COLOR_HEX.orange);
+    expect(gemFillOf(orangeCrystal)).not.toBe(FALLBACK_COLOR_HEX);
   });
 
   // Regression (generic-fallback half of the fix): a color with NO entry in
-  // either map anywhere — standing in for a future, not-yet-built
-  // content-generation pipeline authoring an arbitrary color — must still
-  // render safely: no crash, no literal "undefined" leaking into a style
-  // string, and the documented generic fallback color/emoji used instead.
+  // the map — standing in for a future, not-yet-built content-generation
+  // pipeline authoring an arbitrary color — must still render safely: no
+  // crash, no literal "undefined" leaking into a style string, and the
+  // documented generic fallback color used on both chrome and gem instead.
   it("renders an unmapped color safely with the generic fallback, never leaking 'undefined' into a style string", () => {
     render(<SortTrayTask skeleton={skeleton} fill={unmappedColorFill} onCorrect={vi.fn()} onWrong={vi.fn()} />);
     const tealCrystal = screen.getByLabelText("A teal crystal.");
@@ -208,15 +214,15 @@ describe("SortTrayTask", () => {
     const styleAttr = tealCrystal.getAttribute("style") ?? "";
     expect(styleAttr).not.toContain("undefined");
     expect(styleAttr).toContain(hexToRgb(FALLBACK_COLOR_HEX));
-    expect(screen.getByText(FALLBACK_COLOR_EMOJI)).toBeInTheDocument();
+    expect(gemFillOf(tealCrystal)).toBe(FALLBACK_COLOR_HEX);
   });
 
   // Coverage check: every color literal actually used across the real
   // fixtures served via MISSION_001_LESSON_SEQUENCE
   // (packages/mission-compiler/src/curriculum/mission-001-lesson-sequence.ts)
-  // must have an explicit COLOR_HEX/COLOR_EMOJI entry, so no real,
-  // already-shipped fixture ever silently falls back to the generic
-  // placeholder. This list is hand-verified against a grep of every literal
+  // must have an explicit COLOR_HEX entry, so no real, already-shipped
+  // fixture ever silently falls back to the generic placeholder. This list
+  // is hand-verified against a grep of every literal
   // `color:` attribute in packages/mission-compiler/src/curriculum/skeletons/*.ts
   // as of this fix:
   //   sort-color-crystals.skeleton.ts       -> red, blue, green
@@ -226,11 +232,19 @@ describe("SortTrayTask", () => {
   // isn't a dependency of @l3arn/web), so it must be updated by hand if a
   // future fixture introduces a new color literal — this is exactly the kind
   // of check that would have caught this bug before it shipped.
-  it("has an explicit COLOR_HEX/COLOR_EMOJI entry for every color literal used in the real curriculum fixtures", () => {
+  it("has an explicit COLOR_HEX entry for every color literal used in the real curriculum fixtures", () => {
     const realFixtureColors = ["red", "blue", "green", "purple", "orange"];
     for (const color of realFixtureColors) {
       expect(COLOR_HEX[color], `COLOR_HEX is missing an explicit entry for "${color}"`).toBeDefined();
-      expect(COLOR_EMOJI[color], `COLOR_EMOJI is missing an explicit entry for "${color}"`).toBeDefined();
     }
+  });
+
+  it("draws every tray crystal as a faceted gem sprite filled with its mapped color (not an emoji)", () => {
+    render(<SortTrayTask skeleton={skeleton} fill={fill} onCorrect={vi.fn()} onWrong={vi.fn()} />);
+    expect(gemFillOf(screen.getByLabelText("A red crystal."))).toBe(COLOR_HEX.red);
+    expect(gemFillOf(screen.getByLabelText("A blue crystal."))).toBe(COLOR_HEX.blue);
+    expect(gemFillOf(screen.getByLabelText("A green crystal."))).toBe(COLOR_HEX.green);
+    // Emoji circles are gone — no "🔴"-style text nodes left in the tray.
+    expect(screen.queryByText(/[🔴🔵🟢🟣🟠⬤]/u)).not.toBeInTheDocument();
   });
 });

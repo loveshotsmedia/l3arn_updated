@@ -1,9 +1,20 @@
 /**
  * Lighting — the single lighting rig for every scene (spec §7.2).
- * One directional sun with cascaded-quality shadow settings, an environment
- * map for image-based lighting, and ACES filmic tone mapping. Real HDRI
- * asset is wired in Phase 1 Task 10; until then <Environment preset> gives
- * a reasonable built-in IBL so this task is independently verifiable.
+ *
+ * Visual-pass update: the dawn HDRI is now the visible sky (background), not
+ * just IBL — the hall's open roof reads as a skylit atrium. A hemisphere
+ * light replaces the old flat ambient + fill pair: cool sky bounce from
+ * above, warm ground bounce from below, which is what lifts shadows into
+ * color instead of crushing them to black (spec §7.2 QA rule: no pure-black
+ * shadows). The sun stays the ONE real-time shadow-casting light
+ * (spec §8.1: ≤1 shadow light on LOW tier).
+ *
+ * Pass 9 — warm grade: amber sun color, higher exposure, warmer ground
+ * bounce. The sun's ANGLE stays steep ([10, 20, 10]) on purpose: two
+ * lower-sun attempts (y 9, then y 15) both left most of the floor inside
+ * the 10-unit walls' cast shadow — an enclosed hall needs a steep sun or
+ * the room reads as dusk. Warmth comes from color/exposure, not elevation.
+ * Shadow floors stay lifted and colored, never crushed (spec §7.2).
  */
 import { Environment } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
@@ -15,20 +26,23 @@ export function Lighting() {
 
   useEffect(() => {
     gl.toneMapping = ACESFilmicToneMapping;
-    gl.toneMappingExposure = 1.1;
+    gl.toneMappingExposure = 1.18;
     gl.outputColorSpace = SRGBColorSpace;
   }, [gl]);
 
   return (
     <>
-      <Environment files="/env/great-hall-dawn.hdr" background={false} />
+      {/* IBL + visible sky. Slight blur keeps the 1k HDRI painterly rather than pixelated. */}
+      <Environment files="/env/great-hall-dawn.hdr" background backgroundBlurriness={0.06} />
 
-      <ambientLight intensity={0.25} />
+      {/* Hemisphere bounce — cool sky above, warm stone below. Lifts shadow floors into color. */}
+      <hemisphereLight args={['#c3cdec', '#b08356', 0.6]} />
 
-      {/* Key light / "sun" — the ONE real-time shadow-casting light (spec §8.1: <=1 real-time light on LOW tier). */}
+      {/* Key light / "sun" — the ONE real-time shadow-casting light, dawn-warm. */}
       <directionalLight
+        color="#ffd9a4"
         position={[10, 20, 10]}
-        intensity={1.4}
+        intensity={1.7}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-far={50}
@@ -38,9 +52,6 @@ export function Lighting() {
         shadow-camera-bottom={-20}
         shadow-bias={-0.0005}
       />
-
-      {/* Soft fill — no shadow, cheap. */}
-      <directionalLight position={[-5, 10, -5]} intensity={0.25} />
     </>
   );
 }

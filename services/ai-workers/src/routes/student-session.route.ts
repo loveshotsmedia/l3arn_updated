@@ -21,6 +21,9 @@ import {
   type SetHouseResponse,
   SelectCompanionRequestSchema,
   type SelectCompanionResponse,
+  UnlockHoldingRequestSchema,
+  type UnlockHoldingResponse,
+  type GetHoldingsResponse,
 } from "@l3arn/shared-types";
 import { validateBody } from "../middleware/validate";
 import { getSupabaseServiceClient } from "../lib/supabase";
@@ -361,5 +364,158 @@ studentSessionRouter.post(
     });
 
     res.status(200).json({ ok: true });
+  },
+);
+
+/**
+ * GET /api/student/session/holdings
+ *
+ * Returns every holding the current child has unlocked. Used to hydrate the
+ * 3D world's MasteryBuilding components on load (spec §3.4 "Mastery Makes the World").
+ */
+studentSessionRouter.get(
+  "/holdings",
+  async (req: Request, res: Response): Promise<void> => {
+    let supabase;
+    try {
+      supabase = getSupabaseServiceClient();
+    } catch (err) {
+      log("critical", "GET /holdings: Supabase client init failed", {
+        error: (err as Error).message,
+      });
+      res.status(503).json({
+        error: "SERVICE_UNAVAILABLE",
+        message: "Session service is not configured. Contact support.",
+      });
+      return;
+    }
+
+    const session = await requireChildSession(req, res, supabase);
+    if (!session) return;
+
+    const { data, error } = await supabase
+      .from("world_holdings")
+      .select("holding_id, unlocked_by_mission_id, unlocked_at")
+      .eq("child_profile_id", session.child_profile_id);
+
+    if (error) {
+      log("error", "GET /holdings: failed to read world_holdings", {
+        childProfileId: session.child_profile_id,
+        dbError: error.message,
+      });
+      res.status(500).json({ error: "HOLDINGS_READ_ERROR", message: "Could not load your Academy." });
+      return;
+    }
+
+    const rows = (data ?? []) as Array<{
+      holding_id: string;
+      unlocked_by_mission_id: string;
+      unlocked_at: string;
+    }>;
+
+    const response: GetHoldingsResponse = {
+      holdings: rows.map((row) => ({
+        holdingId: row.holding_id,
+        unlockedByMissionId: row.unlocked_by_mission_id,
+        unlockedAt: row.unlocked_at,
+      })),
+    };
+
+    res.status(200).json(response);
+  },
+);
+
+/**
+ * POST /api/student/session/holdings
+ *
+ * Body: { holdingId, unlockedByMissionId }
+ * Idempotent — re-unlocking an already-unlocked holding is a no-op success
+ * (the unique constraint on (child_profile_id, holding_id) enforces this).
+ */
+studentSessionRouter.post(
+  "/holdings",
+  validateBody(UnlockHoldingRequestSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    const { holdingId, unlockedByMissionId } = req.body as {
+      holdingId: string;
+      unlockedByMissionId: string;
+    };
+
+    let supabase;
+    try {
+      supabase = getSupabaseServiceClient();
+    } catch (err) {
+      log("critical", "POST /holdings: Supabase client init failed", {
+        error: (err as Error).message,
+      });
+      res.status(503).json({
+        error: "SERVICE_UNAVAILABLE",
+        message: "Session service is not configured. Contact support.",
+      });
+      return;
+    }
+
+    const session = await requireChildSession(req, res, supabase);
+    if (!session) return;
+
+    // Retry guard, same shape as the house_memberships check above: if this
+    // child already owns the holding, skip the write entirely and return the
+    // original row — a true no-op, not a re-unlock. (The previous
+    // `ignoreDuplicates: true` upsert relied on `.select().single()` to
+    // return the ignored row, but PostgREST's RETURNING clause never
+    // includes a conflict-skipped row, so a re-unlock always 500'd with
+    // "Cannot coerce the result to a single JSON object".)
+    const { data: existingHolding } = await supabase
+      .from("world_holdings")
+      .select("holding_id, unlocked_by_mission_id, unlocked_at")
+      .eq("child_profile_id", session.child_profile_id)
+      .eq("holding_id", holdingId)
+      .maybeSingle();
+
+    let holding = existingHolding;
+
+    if (!holding) {
+      const { data: inserted, error: upsertError } = await supabase
+        .from("world_holdings")
+        .upsert(
+          {
+            child_profile_id: session.child_profile_id,
+            holding_id: holdingId,
+            unlocked_by_mission_id: unlockedByMissionId,
+          },
+          { onConflict: "child_profile_id,holding_id" },
+        )
+        .select("holding_id, unlocked_by_mission_id, unlocked_at")
+        .single();
+
+      if (upsertError || !inserted) {
+        log("error", "POST /holdings: failed to upsert world_holdings", {
+          childProfileId: session.child_profile_id,
+          holdingId,
+          dbError: upsertError?.message,
+        });
+        res.status(500).json({ error: "HOLDING_WRITE_ERROR", message: "Could not save your progress." });
+        return;
+      }
+      holding = inserted;
+    }
+
+    const row = holding as { holding_id: string; unlocked_by_mission_id: string; unlocked_at: string };
+
+    log("info", "POST /holdings: holding unlocked", {
+      childSessionId: session.id,
+      holdingId: row.holding_id,
+    });
+
+    const response: UnlockHoldingResponse = {
+      success: true,
+      holding: {
+        holdingId: row.holding_id,
+        unlockedByMissionId: row.unlocked_by_mission_id,
+        unlockedAt: row.unlocked_at,
+      },
+    };
+
+    res.status(200).json(response);
   },
 );

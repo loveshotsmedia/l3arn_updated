@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { LessonTaskSkeleton, SkeletonFill } from "@l3arn/shared-types";
 import { sortByHash } from "./deterministic-order";
+import { Gem } from "./MissionGlyphs";
 
 interface SortTrayTaskProps {
   skeleton: LessonTaskSkeleton;
@@ -20,28 +21,26 @@ interface SortTrayTaskProps {
 // (transferItem — deliberately a genuinely novel color not seen in the
 // teaching rounds, see that file's own header comment). "orange" was missing
 // here previously, which produced literal "undefined" in the background/
-// borderColor style strings and a blank emoji for that fixture's transfer
+// borderColor style strings and a blank crystal for that fixture's transfer
 // step (confirmed via verification-screenshots/10-apply-to-new-transfer-step4.png).
-// A generic FALLBACK_* pair also guards any future color a not-yet-built
+// A generic FALLBACK_COLOR_HEX also guards any future color a not-yet-built
 // content-generation pipeline might author that isn't enumerated below.
 // Exported (not just module-local) so SortTrayTask.test.tsx can assert
-// coverage directly against these maps — see that file's "color coverage"
+// coverage directly against this map — see that file's "color coverage"
 // test for the enforcement half of this contract.
+//
+// The crystal itself is drawn by the shared faceted <Gem> sprite (see
+// MissionGlyphs.tsx — ported from main's PR #37 "visual answer options"),
+// not an emoji circle: the sprite takes the same hex for its fill and a
+// translucent variant of it for the glow, so a single color map drives
+// button chrome, gem, and glow consistently.
 export const FALLBACK_COLOR_HEX = "#94a3b8";
-export const FALLBACK_COLOR_EMOJI = "⬤";
 export const COLOR_HEX: Record<string, string> = {
   red: "#ef4444",
   blue: "#3b82f6",
   green: "#22c55e",
   purple: "#a855f7",
   orange: "#f97316",
-};
-export const COLOR_EMOJI: Record<string, string> = {
-  red: "🔴",
-  blue: "🔵",
-  green: "🟢",
-  purple: "🟣",
-  orange: "🟠",
 };
 
 /**
@@ -102,7 +101,8 @@ export function SortTrayTask({ skeleton, fill, onCorrect, onWrong, isTransferSte
           const isSelected = selectedId === item.itemId;
           const isCorrect = item.itemId === targetItem.itemId;
           const colorHex = COLOR_HEX[color] ?? FALLBACK_COLOR_HEX;
-          const colorEmoji = COLOR_EMOJI[color] ?? FALLBACK_COLOR_EMOJI;
+          // 8-digit hex: the color at 50% alpha, used as the gem's drop-shadow glow.
+          const colorGlow = `${colorHex}80`;
           // aria-label fully overrides a button's accessible name, so the
           // visible ✓/✗ feedback below (rendered as sibling text content)
           // would otherwise never reach screen reader users once this prop
@@ -125,7 +125,9 @@ export function SortTrayTask({ skeleton, fill, onCorrect, onWrong, isTransferSte
                 transition: "transform 0.25s ease",
               }}
             >
-              <span style={sortTrayStyles.crystalEmoji}>{colorEmoji}</span>
+              <span style={sortTrayStyles.crystalGem} data-testid="crystal-gem">
+                <Gem hex={colorHex} glow={colorGlow} size={40} />
+              </span>
               <span style={sortTrayStyles.crystalLabel}>{colorLabel}</span>
               {isSelected && <span>{isCorrect ? " ✓" : " ✗"}</span>}
             </button>
@@ -153,8 +155,7 @@ const sortTrayStyles: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     gap: "2px",
     padding: "6px",
-    fontSize: "1.6rem",
   },
-  crystalEmoji: { fontSize: "1.6rem" },
+  crystalGem: { display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 0 },
   crystalLabel: { fontSize: "0.7rem", fontWeight: 700, color: "#e2e8f0" },
 };

@@ -38,6 +38,8 @@ import {
   MissionOutput,
   MissionOutputSchema,
   RewardPlan,
+  Student3dMission,
+  Student3dMissionSchema,
 } from "@l3arn/shared-types";
 
 import {
@@ -45,10 +47,21 @@ import {
   buildMission001UserMessage,
   MISSION_001_PROMPT_TEMPLATE_VERSION,
 } from "./prompts/mission-001.prompt";
-import { MISSION_001_FALLBACK } from "./fallbacks/mission-001.fallback";
+import {
+  buildMission0013dSystemPrompt,
+  MISSION_001_3D_PROMPT_TEMPLATE_VERSION,
+} from "./prompts/mission-001-3d.prompt";
+import {
+  MISSION_001_FALLBACK,
+  getMission001FallbackStudent3d,
+} from "./fallbacks/mission-001.fallback";
 import { withAIRetry } from "./retry/retry-engine";
-import { AIRawMissionOutputSchema } from "./validation/mission-output.schema";
+import {
+  AI3dMissionSchema,
+  AIRawMissionOutputSchema,
+} from "./validation/mission-output.schema";
 import { MISSION_OUTPUT_JSON_SCHEMA } from "./validation/mission-output.json-schema";
+import { MISSION_3D_JSON_SCHEMA } from "./validation/mission-3d.json-schema";
 import {
   buildParentPlanOutput,
   ParentPlanOutput,
@@ -90,6 +103,69 @@ function resolveModelVersion(): string {
     return DEV_DEFAULT;
   }
   return model;
+}
+
+/**
+ * Per-request wall-clock ceiling for the Anthropic mission-generation call.
+ *
+ * Without this, a slow or stuck upstream request never rejects, so withAIRetry's
+ * retry→fallback safety net (which only fires on a *thrown* error) never engages —
+ * the student is left on "Preparing your mission…" indefinitely (the SDK's own
+ * default timeout is 10 minutes). With it, a request that exceeds the ceiling is
+ * aborted and rejects with APIConnectionTimeoutError, which flows straight to the
+ * pre-built static fallback (a valid Mission 001) so the student always gets a
+ * mission promptly.
+ *
+ * Env-tunable via MISSION_AI_TIMEOUT_MS so ops can adjust for observed generation
+ * latency without a redeploy. Default 30s: the fast-start call generates only the
+ * student3dMission section, so it finishes well under this; a hard bound on the
+ * degraded case.
+ */
+const DEFAULT_AI_TIMEOUT_MS = 30_000; // small student3dMission call; rarely approached
+function resolveAiTimeoutMs(): number {
+  const raw = process.env.MISSION_AI_TIMEOUT_MS;
+  if (!raw) return DEFAULT_AI_TIMEOUT_MS;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_AI_TIMEOUT_MS;
+}
+
+/**
+ * Model for the fast-start (student3dMission-only) call. Latency-critical: the
+ * student is staring at "Preparing your mission…" while this runs, and measured
+ * generation on the standard model was 25-35s vs the 3-6s product target. A
+ * smaller/faster model is acceptable here because the output is narrow,
+ * schema-validated (Zod), and safety-bounded by the prompt. Defaults to
+ * ANTHROPIC_MODEL so behavior is unchanged unless ops opts in.
+ */
+function resolveStartModelVersion(): string {
+  return process.env.MISSION_START_MODEL || resolveModelVersion();
+}
+
+/**
+ * A generation error that retrying the identical call cannot fix: a request
+ * timeout or a user/programmatic abort. Detected by both instanceof AND
+ * name/message duck-typing — in the Railway runtime the SDK timeout did NOT
+ * match instanceof alone (PR #20 prod miss), so it retried 3× instead of
+ * short-circuiting. These go straight to the safe fallback; validation
+ * (ZodError) failures are still retried.
+ *
+ * Note: the message match also short-circuits transient server-side 504/408
+ * gateway timeouts — intentional, to bound worst-case wall-clock latency; the
+ * fallback is a safe, valid mission, so recovering via retry isn't worth the wait.
+ */
+export function isNonRetryableAiError(error: unknown): boolean {
+  if (error instanceof Anthropic.APIConnectionTimeoutError) return true;
+  if (error instanceof Anthropic.APIUserAbortError) return true;
+  const name = (error as { name?: unknown } | null)?.name;
+  if (
+    typeof name === "string" &&
+    ["APIConnectionTimeoutError", "APIUserAbortError", "AbortError", "TimeoutError"].includes(name)
+  ) {
+    return true;
+  }
+  const message = (error as { message?: unknown } | null)?.message;
+  if (typeof message === "string" && /timed out|timeout|aborted|abort/i.test(message)) return true;
+  return false;
 }
 
 // ─── Input / Output Types ─────────────────────────────────────────────────────
@@ -176,15 +252,88 @@ export interface MissionCompilerOutput {
   usedFallback: boolean;
 }
 
+/**
+ * The fast-start compiler output — only the section the runtime consumes at start.
+ * Produced by compileStart(): a ~4-6× smaller generation than the full six-section
+ * compile(), so it finishes inside the timeout and AI content is the norm.
+ */
+export interface MissionStartCompilerOutput {
+  /** The student-facing 3D mission section (the only section needed at start) */
+  student3dMission: Student3dMission;
+
+  /** True if the safe fallback slice was used instead of AI-generated content */
+  usedFallback: boolean;
+
+  /** The full AI output envelope (identical shape to compile()'s envelope) */
+  envelope: AIOutputEnvelope;
+}
+
 // ─── MissionCompiler Class ────────────────────────────────────────────────────
+
+/**
+ * Options for the default-constructed Anthropic client.
+ *
+ * `fetch` is Node's built-in fetch (undici), overriding the SDK 0.26 node
+ * shim (node-fetch). node-fetch failed every streamed response on the
+ * Railway runtime with "Premature close" at end-of-stream (0/3 AI
+ * generations in prod); undici terminates chunked/SSE bodies correctly.
+ * Exported for testability.
+ */
+export function buildDefaultClientOptions(apiKey?: string): {
+  apiKey: string | undefined;
+  fetch: typeof globalThis.fetch;
+} {
+  return {
+    apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY,
+    fetch: globalThis.fetch,
+  };
+}
 
 export class MissionCompiler {
   private readonly client: Anthropic;
 
-  constructor(apiKey?: string) {
-    this.client = new Anthropic({
-      apiKey: apiKey ?? process.env.ANTHROPIC_API_KEY,
-    });
+  constructor(apiKey?: string, client?: Anthropic) {
+    this.client =
+      client ??
+      new Anthropic(
+        buildDefaultClientOptions(apiKey) as unknown as ConstructorParameters<
+          typeof Anthropic
+        >[0],
+      );
+  }
+
+  /**
+   * Build the AI audit envelope (ADR-028). Extracted so compile() and
+   * compileStart() produce an identical envelope shape from the same code path.
+   * Generates a fresh envelope id; traceId, requestedAt, result, modelVersion,
+   * and promptTemplateVersion are threaded through from the calling compile path
+   * (compile() and compileStart() use different prompts, so the version must be
+   * passed in to attribute the audit envelope to the prompt that produced it).
+   */
+  private buildEnvelope(
+    traceId: string,
+    requestedAt: string,
+    result: AIOutputResult,
+    modelVersion: string,
+    input: MissionCompilerInput,
+    promptTemplateVersion: string,
+  ): AIOutputEnvelope {
+    return {
+      id: uuidv4(),
+      traceId,
+      generationContext: "mission-compiler",
+      childProfileId: input.childProfileId,
+      childSessionId: input.childSessionId,
+      requestedAt,
+      result,
+      modelProvider: MODEL_PROVIDER,
+      modelVersion: modelVersion,
+      promptTemplateVersion,
+      schemaVersion: SCHEMA_VERSION,
+      safetyPolicyVersion: undefined,
+      missionCompilerVersion: MISSION_COMPILER_VERSION,
+      parentVisible: true,
+    };
   }
 
   /**
@@ -197,6 +346,7 @@ export class MissionCompiler {
    */
   async compile(input: MissionCompilerInput): Promise<MissionCompilerOutput> {
     const modelVersion = resolveModelVersion();
+    const aiTimeoutMs = resolveAiTimeoutMs();
     const traceId = uuidv4();
     const requestedAt = new Date().toISOString();
 
@@ -237,6 +387,13 @@ export class MissionCompiler {
             },
           ],
           tool_choice: { type: "tool", name: "generate_mission" },
+        }, {
+          // Bound the request so a slow/stuck generation aborts and flows into the
+          // retry→fallback path instead of hanging (SDK default timeout is 10 min).
+          // maxRetries: 0 — withAIRetry is the single retry authority; the SDK's own
+          // retries would multiply the wall-clock wait on top of it.
+          timeout: aiTimeoutMs,
+          maxRetries: 0,
         });
 
         // Extract the tool_use block — SDK parses JSON for us
@@ -260,26 +417,21 @@ export class MissionCompiler {
 
       // getFallback(): the pre-built safe fallback for Mission 001
       () => MISSION_001_FALLBACK,
+
+      // A request timeout/abort can't be fixed by retrying — go straight to fallback.
+      isNonRetryableAiError,
     );
 
     // ── Build the audit envelope ───────────────────────────────────────────────
 
-    const envelope: AIOutputEnvelope = {
-      id: uuidv4(),
+    const envelope = this.buildEnvelope(
       traceId,
-      generationContext: "mission-compiler",
-      childProfileId: input.childProfileId,
-      childSessionId: input.childSessionId,
       requestedAt,
       result,
-      modelProvider: MODEL_PROVIDER,
-      modelVersion: modelVersion,
-      promptTemplateVersion: MISSION_001_PROMPT_TEMPLATE_VERSION,
-      schemaVersion: SCHEMA_VERSION,
-      safetyPolicyVersion: undefined,
-      missionCompilerVersion: MISSION_COMPILER_VERSION,
-      parentVisible: true,
-    };
+      modelVersion,
+      input,
+      MISSION_001_PROMPT_TEMPLATE_VERSION,
+    );
 
     // ── Handle both result branches ────────────────────────────────────────────
 
@@ -376,5 +528,123 @@ export class MissionCompiler {
         usedFallback: true,
       };
     }
+  }
+
+  /**
+   * Fast-start compile: generate ONLY the student3dMission section (the single
+   * section the runtime consumes at mission start). ~4-6× smaller than the full
+   * six-section compile(), so it finishes inside the timeout and AI content is
+   * the norm, not the fallback. Falls back to the student3dMission slice of
+   * MISSION_001_FALLBACK on a genuine API failure.
+   */
+  async compileStart(
+    input: MissionCompilerInput,
+  ): Promise<MissionStartCompilerOutput> {
+    const modelVersion = resolveStartModelVersion();
+    const aiTimeoutMs = resolveAiTimeoutMs();
+    const traceId = uuidv4();
+    const requestedAt = new Date().toISOString();
+
+    const systemPrompt = buildMission0013dSystemPrompt();
+    const userMessage = buildMission001UserMessage({
+      parentIntent: input.parentIntent,
+      childPersonalization: {
+        displayName: input.childPersonalization.displayName,
+        houseAffiliation: input.childPersonalization.houseAffiliation,
+        companionName: input.childPersonalization.companionName,
+        companionPersonality: input.childPersonalization.companionPersonality,
+        learningPrefs: input.childPersonalization.learningPrefs,
+      },
+      masteryTargets: input.masteryTargets,
+    });
+
+    const result: AIOutputResult = await withAIRetry(
+      // generate(): request only the narrow student3dMission tool.
+      //
+      // STREAMED, not create(): a non-streaming request sits idle on the wire
+      // for the entire server-side generation (~8-30s), which (a) raced the
+      // request timeout and (b) got its connection killed by intermediaries in
+      // the Railway runtime ("Premature close" — 0/2 AI successes in prod).
+      // Streaming keeps SSE bytes flowing from ~1s in, so neither applies.
+      // The wall-clock bound moves to an explicit AbortController because the
+      // SDK's `timeout` only bounds time-to-first-byte on streamed requests;
+      // an abort rejects with APIUserAbortError → non-retryable → fallback.
+      async () => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), aiTimeoutMs);
+        try {
+          const stream = this.client.messages.stream(
+            {
+              // Only one section → 4000 output tokens is ample headroom.
+              model: modelVersion,
+              max_tokens: 4000,
+              system: systemPrompt,
+              messages: [{ role: "user", content: userMessage }],
+              tools: [
+                {
+                  name: "generate_student_3d_mission",
+                  description:
+                    "Generate the student-facing 3D mission for Mission 001: story hook, " +
+                    "companion dialogue, ordered tasks, and reward preview.",
+                  input_schema: MISSION_3D_JSON_SCHEMA,
+                },
+              ],
+              tool_choice: { type: "tool", name: "generate_student_3d_mission" },
+            },
+            {
+              // withAIRetry is the single retry authority (SDK maxRetries: 0).
+              signal: controller.signal,
+              maxRetries: 0,
+            },
+          );
+          const response = await stream.finalMessage();
+
+          const toolUseBlock = response.content.find(
+            (block) => block.type === "tool_use",
+          );
+          if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
+            throw new Error(
+              "Claude did not return a tool_use block for generate_student_3d_mission",
+            );
+          }
+          return toolUseBlock.input;
+        } finally {
+          clearTimeout(timer);
+        }
+      },
+
+      // validate(): narrow 3D-only Zod schema
+      (raw: unknown) => AI3dMissionSchema.parse(raw),
+
+      // getFallback(): the pre-built safe fallback for Mission 001
+      () => MISSION_001_FALLBACK,
+
+      // A request timeout/abort can't be fixed by retrying — go straight to fallback.
+      isNonRetryableAiError,
+    );
+
+    const envelope = this.buildEnvelope(
+      traceId,
+      requestedAt,
+      result,
+      modelVersion,
+      input,
+      MISSION_001_3D_PROMPT_TEMPLATE_VERSION,
+    );
+
+    if (result.status === "validated") {
+      const student3dMission = Student3dMissionSchema.parse(result.data);
+      return { student3dMission, usedFallback: false, envelope };
+    }
+
+    console.warn(
+      `[MissionCompiler] compileStart fallback for childProfileId=${input.childProfileId}. ` +
+        `Notification: ${result.notificationLevel}. FallbackId: ${result.fallbackId}. TraceId: ${traceId}.`,
+    );
+    return {
+      student3dMission: getMission001FallbackStudent3d(),
+      usedFallback: true,
+      envelope,
+    };
   }
 }
